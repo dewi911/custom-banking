@@ -14,7 +14,7 @@ type User struct {
 	Username     string    `json:"username"`
 	Email        string    `json:"email"`
 	Password     string    `json:"password"`
-	RegisteredAt time.Time `json:"registered_at"`
+	RegisteredAt time.Time `json:"registered_at" db:"registered_at"`
 }
 
 type SingUpInput struct {
