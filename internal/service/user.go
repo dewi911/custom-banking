@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -48,7 +50,7 @@ func (s *User) SingUp(ctx context.Context, inp models.SingUpInput) error {
 func (s *User) SingIn(ctx context.Context, inp models.SingInInput) (string, string, error) {
 	//todo password hasher
 
-	users, err := s.userRepo.GetByCredentials(ctx, inp.Email, inp.Password)
+	user, err := s.userRepo.GetByCredentials(ctx, inp.Email, inp.Password)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", "", errors.Wrapf(err, "GetByCredentials error getting user by email %s", inp.Email)
@@ -56,9 +58,81 @@ func (s *User) SingIn(ctx context.Context, inp models.SingInInput) (string, stri
 		return "", "", errors.Wrap(err, "error getting user by credential")
 	}
 
+	accessToken, refreshToken, err := s.generateTokens(ctx, user)
+	if err != nil {
+		return "", "", errors.Wrap(err, "error generating tokens")
+	}
+
 	//todo acces token and refresh token
 
-	return users.Name, "done", err
+	return accessToken, refreshToken, nil
+}
+
+func (s *User) ParseToken(_ context.Context, token string) (int, int, error) {
+	t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte("secret"), nil
+	})
+
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "error parsing jwt token")
+	}
+
+	if !t.Valid {
+		return 0, 0, errors.Wrapf(err, "jwt token is invalid")
+	}
+
+	claims, ok := t.Claims.(jwt.MapClaims)
+	if !ok {
+		return 0, 0, errors.Wrapf(err, "claims is invalid")
+	}
+
+	subject, ok := claims["sub"].(string)
+	if !ok {
+		return 0, 0, errors.Wrapf(err, "subject is invalid")
+	}
+
+	subjectParts := strings.Split(subject, ":")
+	if len(subjectParts) != 2 {
+		return 0, 0, errors.Wrapf(err, "token subject content error")
+	}
+
+	userID, err := strconv.Atoi(subjectParts[0])
+	if err != nil {
+		return 0, 0, errors.Wrapf(err, "invalid user id %s", subjectParts[0])
+	}
+
+	roleID, err := strconv.Atoi(subjectParts[1])
+	if err != nil {
+		return 0, 0, errors.Wrapf(err, "invalid role id %s", subjectParts[1])
+	}
+
+	return userID, roleID, nil
+}
+
+func (s *User) RefreshTokens(ctx context.Context, refreshToken string) (string, string, error) {
+	session, err := s.sessionRepo.Get(ctx, refreshToken)
+	if err != nil {
+		return "", "", errors.Wrap(err, "error getting refresh session")
+	}
+
+	if session.ExpiresAt.Unix() < time.Now().Unix() {
+		return "", "", errors.Wrapf(err, "session is expired")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, session.UserID)
+	if err != nil {
+		return "", "", errors.Wrap(err, "error getting user by id")
+	}
+
+	accessToken, refreshToken, err := s.generateTokens(ctx, user)
+	if err != nil {
+		return "", "", errors.Wrap(err, "error generating tokens")
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func (s *User) generateTokens(ctx context.Context, user models.User) (string, string, error) {

@@ -23,43 +23,60 @@ func (a *Auth) InjectRouters(ginEngine *gin.Engine) {
 	}
 }
 
-func (a *Auth) singUp(c *gin.Context) {
+func (a *Auth) singUp(ctx *gin.Context) {
 	var inp models.SingUpInput
 
-	if err := c.ShouldBindJSON(&inp); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
+	if err := ctx.ShouldBindJSON(&inp); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
 		return
 	}
 
-	err := a.userService.SingUp(c, inp)
+	err := a.userService.SingUp(ctx, inp)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "success"})
+	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
 }
 
-func (a *Auth) singIn(c *gin.Context) {
+func (a *Auth) singIn(ctx *gin.Context) {
 	var inp models.SingInInput
-	if err := c.ShouldBindJSON(&inp); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
+	if err := ctx.ShouldBindJSON(&inp); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
 		return
 	}
 
 	//todo token acces
 
-	accessToken, refreshToken, err := a.userService.SingIn(c, inp)
+	accessToken, refreshToken, err := a.userService.SingIn(ctx, inp)
 	if err != nil {
 		if errors.Is(err, models.ErrUserNotFound) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"user not found": err.Error()})
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"user not found": err.Error()})
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"sing in error": err.Error()})
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"sing in error": err.Error()})
 		return
 	}
 
 	//todo set cockie
 
-	c.JSON(http.StatusOK, gin.H{"accessToken": accessToken, "refreshToken": refreshToken})
+	ctx.JSON(http.StatusOK, gin.H{"accessToken": accessToken, "refreshToken": refreshToken})
+}
+
+func (a *Auth) refresh(ctx *gin.Context) {
+	cookie, err := ctx.Cookie("refresh-token")
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"refresh token error": err.Error()})
+		return
+	}
+
+	accessToken, refreshToken, err := a.userService.RefreshTokens(ctx, cookie)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"refresh token error": err.Error()})
+		return
+	}
+
+	ctx.SetCookie("refresh-token", accessToken, 60*60*24, "/auth", "localhost", false, true)
+	ctx.JSON(http.StatusOK, gin.H{"accessToken": accessToken, "refreshToken": refreshToken})
 }

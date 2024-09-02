@@ -61,3 +61,7 @@ func (r *Users) GetByCredentials(ctx context.Context, email, password string) (m
 
 	return user, nil
 }
+
+func (r *Users) GetByID(ctx context.Context, id int) (models.User, error) {
+	return models.User{}, nil
+}

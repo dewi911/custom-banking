@@ -36,7 +36,7 @@ func (r *Tokens) Create(ctx context.Context, token models.RefreshSession) error 
 	return nil
 }
 
-func (r *Tokens) Get(ctx context.Context, token string) (*models.RefreshSession, error) {
+func (r *Tokens) Get(ctx context.Context, token string) (models.RefreshSession, error) {
 	fields := logrus.Fields{
 		"layer":      "repository",
 		"repository": "token",
@@ -52,7 +52,7 @@ func (r *Tokens) Get(ctx context.Context, token string) (*models.RefreshSession,
 			WithFields(fields).
 			Error("execution get into refresh_tokens query error")
 
-		return nil, errors.Wrap(err, "execution get into refresh_tokens query error")
+		return models.RefreshSession{}, errors.Wrap(err, "execution get into refresh_tokens query error")
 	}
 
 	_, err = r.db.ExecContext(ctx, "DELETE FROM refresh_tokens WHERE token = $1", refreshSession.UserID)
@@ -61,8 +61,8 @@ func (r *Tokens) Get(ctx context.Context, token string) (*models.RefreshSession,
 			WithFields(fields).
 			Error("execution get into refresh_tokens query error")
 
-		return nil, errors.Wrap(err, "execution get into refresh_tokens query error")
+		return models.RefreshSession{}, errors.Wrap(err, "execution get into refresh_tokens query error")
 	}
 
-	return &refreshSession, err
+	return refreshSession, err
 }
