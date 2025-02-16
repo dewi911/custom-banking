@@ -18,11 +18,15 @@ type User struct {
 	userRepo    UsersRepository
 	sessionRepo SessionRepository
 	roleRepo    RolesRepository
+	eventRepo   EventRepository
 }
 
-func NewUsers(userRepo UsersRepository) *User {
+func NewUsers(userRepo UsersRepository, sessionRepo SessionRepository, rolerepo RolesRepository, eventRepo EventRepository) *User {
 	return &User{
-		userRepo: userRepo,
+		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
+		roleRepo:    rolerepo,
+		eventRepo:   eventRepo,
 	}
 }
 
@@ -161,6 +165,57 @@ func (s *User) generateTokens(ctx context.Context, user models.User) (string, st
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *User) BlockUSer(ctx context.Context, blockUserID, userID int) error {
+	if blockUserID == userID {
+		return errors.New("user cannot block himself error")
+	}
+
+	err := s.userRepo.BlockUser(ctx, blockUserID)
+	if err != nil {
+		return errors.Wrap(err, "error blocking user")
+	}
+
+	event := models.Event{
+		UserID:  userID,
+		Type:    models.UserBlockedEvent,
+		Message: "User blocked successfully",
+	}
+
+	if err = s.eventRepo.CreateEvent(ctx, event); err != nil {
+		return errors.Wrap(err, "user blocking event blocking error")
+	}
+
+	return nil
+}
+
+func (s *User) UnblockUSer(ctx context.Context, userID int) error {
+	err := s.userRepo.UnblockUser(ctx, userID)
+	if err != nil {
+		return errors.Wrap(err, "error unblocking user")
+	}
+
+	event := models.Event{
+		UserID:  userID,
+		Type:    models.UserUnblockedEvent,
+		Message: "User unblocked successfully",
+	}
+
+	if err = s.eventRepo.CreateEvent(ctx, event); err != nil {
+		return errors.Wrap(err, "user blocking event unblocking error")
+	}
+
+	return nil
+}
+
+func (s *User) CheckBlockUser(ctx context.Context, userID int) (bool, error) {
+	checkBlock, err := s.userRepo.CheckBlockUser(ctx, userID)
+	if err != nil {
+		return false, errors.Wrap(err, "error checking block user")
+	}
+
+	return checkBlock, nil
 }
 
 func newRefreshToken() (string, error) {

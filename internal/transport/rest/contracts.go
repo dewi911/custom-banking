@@ -10,4 +10,7 @@ type UserService interface {
 	SingIn(ctx context.Context, inp models.SingInInput) (string, string, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (string, string, error)
 	ParseToken(ctx context.Context, token string) (int, int, error)
+	BlockUser(ctx context.Context, blockUserID, userID int) error
+	UnblockUser(ctx context.Context, userID int) error
+	CheckBlockUser(ctx context.Context, userID int) (bool, error)
 }

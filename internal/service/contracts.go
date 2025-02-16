@@ -14,8 +14,16 @@ type SessionRepository interface {
 	Get(ctx context.Context, token string) (models.RefreshSession, error)
 }
 
+type EventRepository interface {
+	CreateEvent(ctx context.Context, event models.Event) error
+	GetEventsList(ctx context.Context, userID int) ([]models.Event, error)
+}
+
 type UsersRepository interface {
 	Create(ctx context.Context, user models.User) error
 	GetByCredentials(ctx context.Context, email, password string) (models.User, error)
 	GetByID(ctx context.Context, id int) (models.User, error)
+	BlockUser(ctx context.Context, userID int) error
+	UnblockUser(ctx context.Context, userID int) error
+	CheckBlockUser(ctx context.Context, userID int) (bool, error)
 }
