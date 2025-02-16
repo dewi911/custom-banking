@@ -16,15 +16,15 @@ func NewAuth(userService UserService) *Auth {
 	return &Auth{userService}
 }
 
-func (a *Auth) InjectRouters(ginEngine *gin.Engine) {
-	auth := ginEngine.Group("/auth")
+func (a *Auth) InjectRouters(ginEngine *gin.Engine, middlewares ...gin.HandlerFunc) {
+	auth := ginEngine.Group("/auth").Use(middlewares...)
 	{
 		auth.POST("/sing-up", a.singUp)
 		auth.POST("/sing-in", a.singIn)
 		auth.GET("/refresh", a.refresh)
 	}
 
-	user := ginEngine.Group("/user")
+	user := ginEngine.Group("/user").Use(middlewares...)
 	{
 		user.POST("/:id/block", a.blockUser)
 		user.POST("/:id/unblock", a.unblockUser)
