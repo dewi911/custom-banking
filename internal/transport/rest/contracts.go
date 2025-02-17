@@ -26,6 +26,13 @@ type UserService interface {
 	CheckBlockUser(ctx context.Context, userID int) (bool, error)
 }
 
+type CardService interface {
+	CreateCard(ctx context.Context, accountID, UserID int) (models.Card, error)
+	GetCardListUser(ctx context.Context, userID int) ([]models.Card, error)
+	GetCardListByAccount(ctx context.Context, userID, accountID int) ([]models.Card, error)
+	GetCard(ctx context.Context, cardID, accountID, userID int) (models.Card, error)
+}
+
 type EventService interface {
 	GetEventList(ctx context.Context, userID int) ([]models.Event, error)
 }

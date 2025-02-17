@@ -35,3 +35,8 @@ type SingInInput struct {
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
+
+type NameSurname struct {
+	Name    string `db:"name"`
+	Surname string `db:"surname"`
+}

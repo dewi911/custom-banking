@@ -43,12 +43,20 @@ type TransactionRepository interface {
 	GetTransactionList(ctx context.Context, accountID int, ordering models.Orderings, paginator models.Paginator) ([]models.Transaction, error)
 }
 
+type CardRepository interface {
+	CreateCard(ctx context.Context, accountID int, cardNumber string, cardholderName string, cvvCode string) (models.Card, error)
+	GetCardListUser(ctx context.Context, userID int) ([]models.Card, error)
+	GetCardListByAccount(ctx context.Context, userID, accountID int) ([]models.Card, error)
+	GetCard(ctx context.Context, id, accountID int) (models.Card, error)
+}
+
 type EventRepository interface {
 	CreateEvent(ctx context.Context, event models.Event) error
 	GetEventsList(ctx context.Context, userID int) ([]models.Event, error)
 }
 
 type UsersRepository interface {
+	GetUserNameAndSurnameByID(ctx context.Context, userID int) (string, error)
 	Create(ctx context.Context, user models.User) error
 	GetByCredentials(ctx context.Context, email, password string) (models.User, error)
 	GetByID(ctx context.Context, id int) (models.User, error)

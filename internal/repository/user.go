@@ -19,6 +19,41 @@ func NewUsers(db *sqlx.DB) *Users {
 	return &Users{db}
 }
 
+func (r Users) GetUserNameAndSurnameByID(ctx context.Context, userID int) (string, error) {
+	fields := logrus.Fields{
+		"layer":      "repository",
+		"repository": "Users",
+		"method":     "GetUserNameAndSurnameByID",
+		"user_id":    userID,
+	}
+
+	query := "select name, surname from users where id = $1"
+
+	rows, err := r.db.QueryxContext(ctx, query, userID)
+	if err != nil && rows.Err() != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("execution getting name and surname from query users error")
+
+		return "", errors.Wrap(err, "execution getting name and surname from query users error")
+	}
+
+	var nameSurname models.NameSurname
+	for rows.Next() {
+		if err := rows.StructScan(&nameSurname); err != nil {
+			logrus.WithError(err).
+				WithFields(fields).
+				Error("scanning row into struct error")
+
+			return "", errors.Wrap(err, "scanning row into struct error")
+		}
+	}
+
+	fullNameStr := nameSurname.Name + " " + nameSurname.Surname
+
+	return fullNameStr, nil
+}
+
 func (r *Users) Create(ctx context.Context, user models.User) error {
 	fields := logrus.Fields{
 		"layer":      "repository",

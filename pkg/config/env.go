@@ -3,16 +3,26 @@ package config
 import (
 	"fmt"
 	"github.com/caarlos0/env/v11"
+	"time"
 )
 
 type Config struct {
-	Port    string `env:"PORT,required" envDefault:"8080"`
-	DBHost  string `env:"DB_HOST,required" envDefault:"localhost"`
-	DBPort  string `env:"DB_PORT,required" envDefault:"5432"`
-	DBUser  string `env:"DB_USER,required" envDefault:"postgres"`
-	DBPass  string `env:"DB_PASS,required" envDefault:"qwerty"`
-	DBName  string `env:"DB_NAME,required" envDefault:"banking"`
-	SSLMode bool   `env:"DB_SSL_MODE,required" envDefault:"false"`
+	Port     string        `env:"PORT,required" envDefault:"8080"`
+	DBHost   string        `env:"DB_HOST,required" envDefault:"localhost"`
+	DBPort   string        `env:"DB_PORT,required" envDefault:"5432"`
+	DBUser   string        `env:"DB_USER,required" envDefault:"postgres"`
+	DBPass   string        `env:"DB_PASS,required" envDefault:"qwerty"`
+	DBName   string        `env:"DB_NAME,required" envDefault:"banking"`
+	SSLMode  bool          `env:"DB_SSL_MODE,required" envDefault:"false"`
+	TokenTTL time.Duration `env:"TOKEN_TTL,required"`
+
+	UserPasswordSalt string     `env:"USER_PASSWORD_SALT" envDefault:"salt"`
+	RBACConfig       RBACConfig `envPrefix:"RBAC_"`
+}
+
+type RBACConfig struct {
+	ModelFilePath  string `env:"MODEL_FILE_PATH,required"`
+	PolicyFilePath string `env:"POLICY_FILE_PATH,required"`
 }
 
 func Parse() (*Config, error) {

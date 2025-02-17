@@ -16,8 +16,8 @@ type Account struct {
 }
 
 func NewAccount(accountRepo AccountRepository, transactionRepo TransactionRepository, eventRepo EventRepository,
-	ibanGenerator RandomGenerator) Account {
-	return Account{
+	ibanGenerator RandomGenerator) *Account {
+	return &Account{
 		accountRepo:     accountRepo,
 		transactionRepo: transactionRepo,
 		eventRepo:       eventRepo,

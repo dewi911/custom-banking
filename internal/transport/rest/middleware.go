@@ -1,11 +1,10 @@
 package rest
 
 import (
+	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -63,5 +62,40 @@ func (a *Auth) AuthMiddleware() gin.HandlerFunc {
 		c.Set(ctxUserRoleIDKey, roleID)
 
 		c.Next()
+	}
+}
+
+func RBACMiddleware(enforcer casbin.IEnforcer, roleRepository RoleRepository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var group, method, path string
+		r, exists := c.Get(ctxUserRoleIDKey)
+		if !exists {
+			group = "anonymous"
+		} else {
+			roleID := r.(int)
+			role, err := roleRepository.GetByID(c.Request.Context(), roleID)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("getting role error", err))
+				return
+			}
+
+			group = role.Name
+		}
+
+		method = c.Request.Method
+		path = c.Request.URL.Path
+
+		ok, err := enforcer.Enforce(group, path, method)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("checking permissions error", err))
+			return
+		}
+
+		if ok {
+			c.Next()
+		} else {
+			c.AbortWithStatusJSON(http.StatusForbidden, NewForbiddenError("user does not have rights to perform an operation", nil))
+			return
+		}
 	}
 }
