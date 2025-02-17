@@ -15,6 +15,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Password     string    `json:"password"`
 	RoleID       int       `json:"role_id"`
+	Blocked      bool      `json:"blocked"`
 	RegisteredAt time.Time `json:"registered_at" db:"registered_at"`
 }
 
@@ -29,4 +30,8 @@ type SingUpInput struct {
 type SingInInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
 }

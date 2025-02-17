@@ -131,3 +131,30 @@ func (r *Users) UnblockUser(ctx context.Context, userID int) error {
 
 	return nil
 }
+
+func (r *Users) CheckBlockUser(ctx context.Context, userID int) (bool, error) {
+	fields := logrus.Fields{
+		"layer":      "repository",
+		"repository": "Users",
+		"method":     "CheckBlockUser",
+		"user_id":    userID,
+	}
+
+	var checkBlock bool
+
+	query := "SELECT blocked FROM users WHERE id = $1"
+
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&checkBlock); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("execution getting blocked from users query error")
+
+		return false, errors.Wrap(err, "execution getting blocked from users query error")
+	}
+
+	if checkBlock {
+		return true, nil
+	} else {
+		return false, nil
+	}
+}

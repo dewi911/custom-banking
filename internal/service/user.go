@@ -31,9 +31,10 @@ func NewUsers(userRepo UsersRepository, sessionRepo SessionRepository, rolerepo 
 }
 
 func (s *User) SingUp(ctx context.Context, inp models.SingUpInput) error {
-	//todo if exist
-	//todo pass hash
-	//todo role user
+	role, err := s.roleRepo.GetByName(ctx, "user")
+	if err != nil {
+		return errors.Wrap(err, "role getting error")
+	}
 
 	user := models.User{
 		Name:     inp.Name,
@@ -41,9 +42,11 @@ func (s *User) SingUp(ctx context.Context, inp models.SingUpInput) error {
 		Username: inp.Username,
 		Email:    inp.Email,
 		Password: inp.Password,
+		RoleID:   role.ID,
+		Blocked:  false,
 	}
 
-	err := s.userRepo.Create(ctx, user)
+	err = s.userRepo.Create(ctx, user)
 	if err != nil {
 		return errors.Wrap(err, "error creating user")
 	}
@@ -167,7 +170,7 @@ func (s *User) generateTokens(ctx context.Context, user models.User) (string, st
 	return accessToken, refreshToken, nil
 }
 
-func (s *User) BlockUSer(ctx context.Context, blockUserID, userID int) error {
+func (s *User) BlockUser(ctx context.Context, blockUserID, userID int) error {
 	if blockUserID == userID {
 		return errors.New("user cannot block himself error")
 	}
@@ -190,7 +193,7 @@ func (s *User) BlockUSer(ctx context.Context, blockUserID, userID int) error {
 	return nil
 }
 
-func (s *User) UnblockUSer(ctx context.Context, userID int) error {
+func (s *User) UnblockUser(ctx context.Context, userID int) error {
 	err := s.userRepo.UnblockUser(ctx, userID)
 	if err != nil {
 		return errors.Wrap(err, "error unblocking user")

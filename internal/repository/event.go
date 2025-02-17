@@ -45,7 +45,7 @@ func (e *Event) CreateEvent(ctx context.Context, event models.Event) error {
 	return nil
 }
 
-func (e *Event) GetEventsList(ctx context.Context, userID string) ([]models.Event, error) {
+func (e *Event) GetEventsList(ctx context.Context, userID int) ([]models.Event, error) {
 	fields := logrus.Fields{
 		"layer":      "repository",
 		"repository": "event",

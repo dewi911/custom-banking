@@ -12,8 +12,8 @@ import (
 const (
 	ctxUserIDKey     = "user-id"
 	ctxUserRoleIDKey = "user-role-id"
+	ctxUsernameKey   = "username"
 )
-
 const AuthorizationHeaderName = "Authorization"
 
 func LoggingMiddleware() gin.HandlerFunc {
@@ -64,22 +64,4 @@ func (a *Auth) AuthMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
-}
-
-func getTokenFromRequest(c *gin.Context) (string, error) {
-	header := c.GetHeader(AuthorizationHeaderName)
-	if header == "" {
-		return "", errors.Wrap(nil, "empty authorization header")
-	}
-
-	headerParts := strings.Split(header, " ")
-	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
-		return "", errors.Wrap(nil, "invalid authorization header")
-	}
-
-	if len(headerParts[1]) == 0 {
-		return "", errors.Wrap(nil, "token is empty")
-	}
-
-	return headerParts[1], nil
 }
