@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"custom-banking/internal/repository"
 	"custom-banking/internal/service"
 	"custom-banking/internal/transport/rest"
@@ -11,7 +12,11 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func init() {
@@ -27,6 +32,18 @@ func init() {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-signalChan
+		logrus.Infof("Received shutdown signal: %v", sig)
+		cancel()
+	}()
+
 	cfg, err := config.Parse()
 	if err != nil {
 		logrus.WithError(err).Fatalf("error parsing config from env variables: %s", err.Error())
@@ -39,12 +56,16 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatalf("error connecting to database: %s", err.Error())
 	}
+
 	defer func() {
 		logrus.Info("Closing database connection...")
 		if err := db.Close(); err != nil {
 			logrus.WithError(err).Error("Error closing database connection")
+		} else {
+			logrus.Info("Database connection closed successfully")
 		}
 	}()
+
 	logrus.Info("Database connection established successfully")
 
 	logrus.Info("Listing available migration files...")
@@ -102,8 +123,29 @@ func main() {
 	cardTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	eventTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 
-	logrus.Infof("Starting server on port %s...", cfg.Port)
-	if err := g.Run(fmt.Sprintf(":%s", cfg.Port)); err != nil {
-		logrus.Fatalf("error occurred while running http server: %s", err.Error())
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%s", cfg.Port),
+		Handler: g,
 	}
+
+	go func() {
+		logrus.Infof("Starting server on port %s...", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logrus.Fatalf("Error starting server: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logrus.Info("Shutdown signal received, initiating graceful shutdown...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logrus.WithError(err).Error("Server shutdown error")
+	} else {
+		logrus.Info("Server gracefully stopped")
+	}
+
+	logrus.Info("Application shutdown complete")
 }
