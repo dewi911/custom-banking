@@ -8,7 +8,6 @@ import (
 	"custom-banking/pkg/config"
 	"custom-banking/pkg/database"
 	"fmt"
-	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -27,11 +26,6 @@ func main() {
 	}
 	defer db.Close()
 
-	enforser, err := casbin.NewEnforcer(cfg.RBACConfig.ModelFilePath, cfg.RBACConfig.PolicyFilePath)
-	if err != nil {
-		logrus.WithError(err).Fatal("error initialization casbin enforcer")
-	}
-
 	randomGenerator := pkg.NewGenerator("BY", "123456")
 
 	userRepo := repository.NewUsers(db)
@@ -41,6 +35,8 @@ func main() {
 	transactionRepository := repository.NewTransactions(db)
 	cardRepository := repository.NewCard(db)
 	eventRepository := repository.NewEvent(db)
+
+	accessControl := service.NewAccessControl(rolesRepository)
 
 	usersService := service.NewUsers(userRepo, tokensRepository, rolesRepository, eventRepository)
 	accountService := service.NewAccount(accountRepository, transactionRepository, eventRepository, randomGenerator)
@@ -54,16 +50,16 @@ func main() {
 	cardTransport := rest.NewCard(cardService)
 	eventTransport := rest.NewEvent(eventService)
 
-	rbacMiddleware := rest.RBACMiddleware(enforser, rolesRepository)
+	accessControlMiddleware := rest.AccessControlMiddleware(accessControl, rolesRepository)
 
 	g := gin.New()
 
 	g.Use(rest.LoggingMiddleware())
-	authTransport.InjectRouters(g, rbacMiddleware)
-	accountTransport.InjectRoutes(g, authTransport.AuthMiddleware(), rbacMiddleware)
-	transactionTransport.InjectRoutes(g, authTransport.AuthMiddleware(), rbacMiddleware)
-	cardTransport.InjectRoutes(g, authTransport.AuthMiddleware(), rbacMiddleware)
-	eventTransport.InjectRoutes(g, authTransport.AuthMiddleware(), rbacMiddleware)
+	authTransport.InjectRouters(g, accessControlMiddleware)
+	accountTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
+	transactionTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
+	cardTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
+	eventTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 
 	fmt.Println("Server run...")
 	if err := g.Run(fmt.Sprintf(":%s", cfg.Port)); err != nil {

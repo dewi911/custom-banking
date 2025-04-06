@@ -16,13 +16,7 @@ type Config struct {
 	SSLMode  bool          `env:"DB_SSL_MODE,required" envDefault:"false"`
 	TokenTTL time.Duration `env:"TOKEN_TTL,required"`
 
-	UserPasswordSalt string     `env:"USER_PASSWORD_SALT" envDefault:"salt"`
-	RBACConfig       RBACConfig `envPrefix:"RBAC_"`
-}
-
-type RBACConfig struct {
-	ModelFilePath  string `env:"MODEL_FILE_PATH,required"`
-	PolicyFilePath string `env:"POLICY_FILE_PATH,required"`
+	UserPasswordSalt string `env:"USER_PASSWORD_SALT" envDefault:"salt"`
 }
 
 func Parse() (*Config, error) {

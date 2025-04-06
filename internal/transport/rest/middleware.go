@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"github.com/casbin/casbin/v2"
+	"custom-banking/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
@@ -65,12 +65,13 @@ func (a *Auth) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func RBACMiddleware(enforcer casbin.IEnforcer, roleRepository RoleRepository) gin.HandlerFunc {
+// AccessControlMiddleware проверяет, имеет ли пользователь доступ к запрашиваемому ресурсу
+func AccessControlMiddleware(accessControl *service.AccessControl, roleRepository service.RoleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var group, method, path string
+		var roleName, method, path string
 		r, exists := c.Get(ctxUserRoleIDKey)
 		if !exists {
-			group = "anonymous"
+			roleName = "anonymous"
 		} else {
 			roleID := r.(int)
 			role, err := roleRepository.GetByID(c.Request.Context(), roleID)
@@ -79,19 +80,13 @@ func RBACMiddleware(enforcer casbin.IEnforcer, roleRepository RoleRepository) gi
 				return
 			}
 
-			group = role.Name
+			roleName = role.Name
 		}
 
 		method = c.Request.Method
 		path = c.Request.URL.Path
 
-		ok, err := enforcer.Enforce(group, path, method)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("checking permissions error", err))
-			return
-		}
-
-		if ok {
+		if accessControl.CheckPermission(roleName, path, method) {
 			c.Next()
 		} else {
 			c.AbortWithStatusJSON(http.StatusForbidden, NewForbiddenError("user does not have rights to perform an operation", nil))
