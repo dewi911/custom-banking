@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:embed schema.sql
+//go:embed schema.sql constraints.sql
 var migrationsFS embed.FS
 
 func RunMigrations(db *sqlx.DB) error {
@@ -40,24 +40,24 @@ func RunMigrations(db *sqlx.DB) error {
 		return fmt.Errorf("error creating migrations table: %w", err)
 	}
 
-	schemaSQL, err := migrationsFS.ReadFile("schema.sql")
+	logrus.Info("Checking for blocking sessions...")
+	var blockingCount int
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM pg_stat_activity 
+		WHERE waiting AND NOT pid = pg_backend_pid()
+	`).Scan(&blockingCount)
 	if err != nil {
-		return fmt.Errorf("error reading schema file: %w", err)
+		logrus.Warnf("Unable to check for blocking sessions: %v", err)
+	} else if blockingCount > 0 {
+		logrus.Warnf("Detected %d blocking sessions that might affect migrations", blockingCount)
 	}
 
-	logrus.Info("Applying database schema migrations...")
+	if err := applyMigrationFile(db, "schema.sql"); err != nil {
+		return err
+	}
 
-	commands := splitSQLScript(string(schemaSQL))
-	for i, cmd := range commands {
-		if strings.TrimSpace(cmd) == "" {
-			continue
-		}
-
-		logrus.Debugf("Executing SQL command %d/%d: %s", i+1, len(commands), getShortCommandForLog(cmd))
-		_, err = db.Exec(cmd)
-		if err != nil {
-			return fmt.Errorf("error applying migration command: %w\nCommand: %s", err, getShortCommandForLog(cmd))
-		}
+	if err := applyMigrationFile(db, "constraints.sql"); err != nil {
+		return err
 	}
 
 	err = verifyTables(db)
@@ -69,12 +69,90 @@ func RunMigrations(db *sqlx.DB) error {
 	return nil
 }
 
+func applyMigrationFile(db *sqlx.DB, filename string) error {
+	logrus.Infof("Applying migration file: %s", filename)
+
+	sqlContent, err := migrationsFS.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("error reading %s file: %w", filename, err)
+	}
+
+	commands := splitSQLScript(string(sqlContent))
+
+	var migrationExists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM migrations WHERE name = $1)", filename).Scan(&migrationExists)
+	if err != nil {
+		logrus.Warnf("Error checking migration status: %v", err)
+	} else if migrationExists {
+		logrus.Infof("Migration %s has already been applied, checking integrity", filename)
+	}
+
+	var tx *sqlx.Tx
+	if filename == "schema.sql" {
+		tx, err = db.Beginx()
+		if err != nil {
+			return fmt.Errorf("error starting transaction for %s: %w", filename, err)
+		}
+		defer func() {
+			if err != nil {
+				tx.Rollback()
+				logrus.Warnf("Transaction rolled back for %s", filename)
+			}
+		}()
+	}
+
+	for i, cmd := range commands {
+		if strings.TrimSpace(cmd) == "" {
+			continue
+		}
+
+		logrus.Debugf("Executing SQL command %d/%d from %s: %s", i+1, len(commands), filename, getShortCommandForLog(cmd))
+
+		var execErr error
+		if tx != nil {
+			_, execErr = tx.Exec(cmd)
+		} else {
+			_, execErr = db.Exec(cmd)
+		}
+
+		if execErr != nil {
+			if filename == "constraints.sql" && strings.Contains(execErr.Error(), "уже существует") {
+				logrus.Warnf("Constraint already exists, continuing: %v", execErr)
+				continue
+			}
+
+			logrus.Errorf("Error executing command: %s", cmd)
+			return fmt.Errorf("error applying migration command from %s: %w\nCommand: %s",
+				filename, execErr, getShortCommandForLog(cmd))
+		}
+
+		if i < len(commands)-1 && strings.Contains(cmd, "DO $$") {
+			logrus.Debug("Completed executing DO block, proceeding to next command")
+		}
+	}
+
+	if tx != nil {
+		if err = tx.Commit(); err != nil {
+			return fmt.Errorf("error committing transaction for %s: %w", filename, err)
+		}
+		logrus.Debug("Transaction committed successfully")
+	}
+
+	if !migrationExists {
+		_, err = db.Exec("INSERT INTO migrations (name) VALUES ($1) ON CONFLICT DO NOTHING", filename)
+		if err != nil {
+			logrus.Warnf("Error recording migration status: %v", err)
+		}
+	}
+
+	logrus.Infof("Successfully applied migration file: %s", filename)
+	return nil
+}
+
 func splitSQLScript(script string) []string {
 	var commands []string
 	var currentCommand strings.Builder
-	inFunction := false
-	inBlock := false
-	dollarQuote := false
+	dollarQuoteDepth := 0
 
 	lines := strings.Split(script, "\n")
 	for _, line := range lines {
@@ -84,34 +162,18 @@ func splitSQLScript(script string) []string {
 			continue
 		}
 
-		if strings.Contains(trimmedLine, "DO $$") || strings.Contains(trimmedLine, "BEGIN") {
-			inFunction = true
-		}
-
-		if strings.Contains(trimmedLine, "$$") {
-			dollarQuote = !dollarQuote
-		}
-
-		if strings.Contains(trimmedLine, "BEGIN") {
-			inBlock = true
-		}
-		if strings.Contains(trimmedLine, "END") {
-			inBlock = false
+		dollarCount := strings.Count(trimmedLine, "$$")
+		if dollarCount > 0 {
+			dollarQuoteDepth += dollarCount % 2
 		}
 
 		currentCommand.WriteString(line)
 		currentCommand.WriteString("\n")
 
-		isEndOfCommand := strings.HasSuffix(trimmedLine, ";") && !inFunction && !inBlock && !dollarQuote
-		isEndOfPlPgSQL := strings.Contains(trimmedLine, "END") && strings.Contains(trimmedLine, "$$") && inFunction
-
-		if isEndOfCommand || isEndOfPlPgSQL {
+		if (strings.HasSuffix(trimmedLine, ";") && dollarQuoteDepth == 0) ||
+			(strings.Contains(trimmedLine, "END") && strings.Contains(trimmedLine, "$$") && dollarQuoteDepth == 0) {
 			commands = append(commands, currentCommand.String())
 			currentCommand.Reset()
-
-			if isEndOfPlPgSQL {
-				inFunction = false
-			}
 		}
 	}
 
@@ -119,7 +181,52 @@ func splitSQLScript(script string) []string {
 		commands = append(commands, currentCommand.String())
 	}
 
-	return commands
+	var refinedCommands []string
+	for _, cmd := range commands {
+		if strings.Count(cmd, "DO $$") > 1 {
+			parts := splitDOBlocks(cmd)
+			refinedCommands = append(refinedCommands, parts...)
+		} else {
+			refinedCommands = append(refinedCommands, cmd)
+		}
+	}
+
+	return refinedCommands
+}
+
+func splitDOBlocks(script string) []string {
+	var blocks []string
+	var currentBlock strings.Builder
+	dollarQuoteDepth := 0
+
+	lines := strings.Split(script, "\n")
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		if strings.Contains(trimmedLine, "DO $$") && dollarQuoteDepth == 0 && currentBlock.Len() > 0 {
+			blocks = append(blocks, currentBlock.String())
+			currentBlock.Reset()
+		}
+
+		dollarCount := strings.Count(trimmedLine, "$$")
+		if dollarCount > 0 {
+			dollarQuoteDepth += dollarCount % 2
+		}
+
+		currentBlock.WriteString(line)
+		currentBlock.WriteString("\n")
+
+		if strings.Contains(trimmedLine, "END") && strings.Contains(trimmedLine, "$$") && dollarQuoteDepth == 0 {
+			blocks = append(blocks, currentBlock.String())
+			currentBlock.Reset()
+		}
+	}
+
+	if currentBlock.Len() > 0 {
+		blocks = append(blocks, currentBlock.String())
+	}
+
+	return blocks
 }
 
 func getShortCommandForLog(cmd string) string {
@@ -182,6 +289,34 @@ func verifyTables(db *sqlx.DB) error {
 		}
 	}
 	logrus.Info("All essential ENUM types are present")
+
+	logrus.Info("Verifying essential foreign key constraints...")
+	essentialConstraints := []struct {
+		name  string
+		table string
+	}{
+		{"FK_accounts_currency_1", "accounts"},
+		{"FK_refresh_tokens_user_1", "refresh_tokens"},
+		{"FK_users_role_1", "users"},
+	}
+
+	for _, constraint := range essentialConstraints {
+		var exists bool
+		query := `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.table_constraints 
+				WHERE constraint_name = $1 AND table_name = $2
+			)
+		`
+		err := db.QueryRow(query, constraint.name, constraint.table).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("error checking constraint %s: %w", constraint.name, err)
+		}
+
+		if !exists {
+			logrus.Warnf("Foreign key constraint %s on table %s is missing", constraint.name, constraint.table)
+		}
+	}
 
 	var roleCount int
 	err := db.QueryRow("SELECT COUNT(*) FROM roles").Scan(&roleCount)

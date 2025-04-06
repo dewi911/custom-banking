@@ -32,15 +32,30 @@ func main() {
 		logrus.WithError(err).Fatalf("error parsing config from env variables: %s", err.Error())
 	}
 
-	fmt.Printf("%+v\n", cfg)
+	logrus.Infof("Starting application with configuration: %+v", cfg)
 
 	logrus.Info("Connecting to database...")
 	db, err := database.CreateConnection(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPass, cfg.DBName, cfg.SSLMode)
 	if err != nil {
 		logrus.WithError(err).Fatalf("error connecting to database: %s", err.Error())
 	}
-	defer db.Close()
+	defer func() {
+		logrus.Info("Closing database connection...")
+		if err := db.Close(); err != nil {
+			logrus.WithError(err).Error("Error closing database connection")
+		}
+	}()
 	logrus.Info("Database connection established successfully")
+
+	logrus.Info("Listing available migration files...")
+	migrationFiles, err := migrations.ListMigrationFiles()
+	if err != nil {
+		logrus.WithError(err).Warn("Failed to list migration files")
+	} else {
+		for _, file := range migrationFiles {
+			logrus.Infof("Found migration file: %s", file)
+		}
+	}
 
 	logrus.Info("Starting database migrations...")
 	if err := migrations.RunMigrations(db); err != nil {

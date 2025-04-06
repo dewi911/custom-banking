@@ -12,7 +12,7 @@ type Config struct {
 	DBPort   string        `env:"DB_PORT,required" envDefault:"5432"`
 	DBUser   string        `env:"DB_USER,required" envDefault:"postgres"`
 	DBPass   string        `env:"DB_PASS,required" envDefault:"qwerty"`
-	DBName   string        `env:"DB_NAME,required" envDefault:"banking123"`
+	DBName   string        `env:"DB_NAME,required" envDefault:"banking111"`
 	SSLMode  bool          `env:"DB_SSL_MODE,required" envDefault:"false"`
 	TokenTTL time.Duration `env:"TOKEN_TTL,required" envDefault:"30m"`
 
