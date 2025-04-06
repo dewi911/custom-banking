@@ -8,15 +8,15 @@ import (
 var ErrUserNotFound = errors.New("user with such credentials not found")
 
 type User struct {
-	Id           int       `json:"id"`
-	Name         string    `json:"name"`
-	Surname      string    `json:"surname"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	Password     string    `json:"password"`
-	RoleID       int       `json:"role_id"`
-	Blocked      bool      `json:"blocked"`
-	RegisteredAt time.Time `json:"registered_at" db:"registered_at"`
+	Id        int       `json:"id" db:"id"`
+	Name      string    `json:"name" db:"name"`
+	Surname   string    `json:"surname" db:"surname"`
+	Username  string    `json:"username" db:"username"`
+	Email     string    `json:"email" db:"email"`
+	Password  string    `json:"password" db:"password"`
+	RoleID    int       `json:"role_id" db:"role_id"`
+	Blocked   bool      `json:"blocked" db:"blocked"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type SingUpInput struct {

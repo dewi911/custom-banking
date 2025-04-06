@@ -62,9 +62,9 @@ func (r *Users) Create(ctx context.Context, user models.User) error {
 		"user":       user,
 	}
 
-	query := "insert into users (name, surname, username, email, password, registered_at) values ($1, $2, $3,$4, $5, now())"
+	query := "INSERT INTO users (name, surname, username, email, password, role_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)"
 
-	_, err := r.db.ExecContext(ctx, query, user.Name, user.Surname, user.Username, user.Email, user.Password)
+	_, err := r.db.ExecContext(ctx, query, user.Name, user.Surname, user.Username, user.Email, user.Password, user.RoleID)
 	if err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -87,7 +87,7 @@ func (r *Users) GetByCredentials(ctx context.Context, email, password string) (m
 
 	var user models.User
 
-	query := "select * from users where email = $1 and password = $2"
+	query := "SELECT * FROM users WHERE email = $1 AND password = $2"
 
 	err := r.db.QueryRowxContext(ctx, query, email, password).StructScan(&user)
 	if err != nil {
@@ -110,10 +110,9 @@ func (r *Users) GetByID(ctx context.Context, id int) (models.User, error) {
 
 	var user models.User
 
-	query := "select id, name, surname, username, email, password, registered_at from users where id = $1"
+	query := "SELECT id, name, surname, username, email, password, role_id, blocked, created_at FROM users WHERE id = $1"
 
-	err := r.db.QueryRowxContext(ctx, query, id).
-		Scan(&user)
+	err := r.db.QueryRowxContext(ctx, query, id).StructScan(&user)
 	if err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -154,9 +153,9 @@ func (r *Users) UnblockUser(ctx context.Context, userID int) error {
 		"user":       userID,
 	}
 
-	query := "update users set blocked = $1 where id = $2"
+	query := "UPDATE users SET blocked = $1 WHERE id = $2"
 
-	if _, err := r.db.ExecContext(ctx, query, block, userID); err != nil {
+	if _, err := r.db.ExecContext(ctx, query, unblock, userID); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
 			Error("execution unblock user query by id error")

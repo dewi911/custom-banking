@@ -83,14 +83,14 @@ func (t Transaction) getTransactionList(ctx *gin.Context) {
 	messageTransactionsList := make([]models.Transaction, 0, len(domainTransactionsList))
 	for _, transaction := range domainTransactionsList {
 		messageTransaction := models.Transaction{
-			ID:          transaction.ID,
-			FromAccount: transaction.FromAccount,
-			ToAccount:   transaction.ToAccount,
-			Amount:      transaction.Amount,
-			Type:        transaction.Type,
-			Status:      transaction.Status,
-			DateCreated: transaction.DateCreated,
-			DateUpdated: transaction.DateUpdated,
+			ID:              transaction.ID,
+			FromAccount:     transaction.FromAccount,
+			ToAccount:       transaction.ToAccount,
+			Amount:          transaction.Amount,
+			TransactionType: transaction.TransactionType,
+			Status:          transaction.Status,
+			DateCreated:     transaction.DateCreated,
+			DateUpdated:     transaction.DateUpdated,
 		}
 		messageTransactionsList = append(messageTransactionsList, messageTransaction)
 	}

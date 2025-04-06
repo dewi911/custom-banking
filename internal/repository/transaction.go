@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	transactionPreparedStatus = "PREPARED"
-	transactionSentStatus     = "SENT"
+	transactionPendingStatus   = "pending"
+	transactionCompletedStatus = "completed"
+	transactionFailedStatus    = "failed"
+	transactionCancelledStatus = "cancelled"
 
 	ingoingTransactionType  = "ingoing"
 	outgoingTransactionType = "outgoing"
@@ -44,9 +46,19 @@ func (r Transactions) CreateTransaction(ctx context.Context, fromAccountID, toAc
 		nullableFromAccountID.Valid = true
 	}
 
-	query := "INSERT INTO transactions (from_account, to_account, amount, status, date_created) VALUES ($1, $2, $3, $4, NOW()) RETURNING *"
+	query := `INSERT INTO transactions 
+		(from_account, to_account, amount, status, date_created, transaction_type) 
+		VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5) 
+		RETURNING id, from_account, to_account, amount, status, date_created, date_updated, transaction_type, description, reference_number`
 
-	row := r.db.QueryRowContext(ctx, query, nullableFromAccountID, toAccountID, amount, transactionPreparedStatus)
+	var transactionType string
+	if fromAccountID == 0 {
+		transactionType = ingoingTransactionType
+	} else {
+		transactionType = outgoingTransactionType
+	}
+
+	row := r.db.QueryRowContext(ctx, query, nullableFromAccountID, toAccountID, amount, transactionPendingStatus, transactionType)
 	if row.Err() != nil {
 		logrus.WithError(row.Err()).
 			WithFields(fields).
@@ -64,6 +76,9 @@ func (r Transactions) CreateTransaction(ctx context.Context, fromAccountID, toAc
 		&transaction.Status,
 		&transaction.DateCreated,
 		&transaction.DateUpdated,
+		&transaction.TransactionType,
+		&transaction.Description,
+		&transaction.ReferenceNumber,
 	); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -79,13 +94,55 @@ func (r Transactions) SetTransactionStatusToSent(ctx context.Context, transactio
 	fields := logrus.Fields{
 		"layer":          "repository",
 		"repository":     "Transaction",
-		"method":         "CreateTransaction",
+		"method":         "SetTransactionStatusToCompleted",
 		"transaction_id": transactionID,
 	}
 
-	query := "UPDATE transactions SET status=$1, date_updated=NOW() WHERE id = $2"
+	query := "UPDATE transactions SET status=$1, date_updated=CURRENT_TIMESTAMP WHERE id = $2"
 
-	if _, err := r.db.ExecContext(ctx, query, transactionSentStatus, transactionID); err != nil {
+	if _, err := r.db.ExecContext(ctx, query, transactionCompletedStatus, transactionID); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("execution updating status into transactions query error")
+
+		return errors.Wrap(err, "execution updating status into transactions query error")
+	}
+
+	return nil
+}
+
+func (r Transactions) SetTransactionStatusToCancelled(ctx context.Context, transactionID int) error {
+	fields := logrus.Fields{
+		"layer":          "repository",
+		"repository":     "Transaction",
+		"method":         "SetTransactionStatusToCancelled",
+		"transaction_id": transactionID,
+	}
+
+	query := "UPDATE transactions SET status=$1, date_updated=CURRENT_TIMESTAMP WHERE id = $2"
+
+	if _, err := r.db.ExecContext(ctx, query, transactionCancelledStatus, transactionID); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("execution updating status into transactions query error")
+
+		return errors.Wrap(err, "execution updating status into transactions query error")
+	}
+
+	return nil
+}
+
+func (r Transactions) SetTransactionStatusToFailed(ctx context.Context, transactionID int) error {
+	fields := logrus.Fields{
+		"layer":          "repository",
+		"repository":     "Transaction",
+		"method":         "SetTransactionStatusToFailed",
+		"transaction_id": transactionID,
+	}
+
+	query := "UPDATE transactions SET status=$1, date_updated=CURRENT_TIMESTAMP WHERE id = $2"
+
+	if _, err := r.db.ExecContext(ctx, query, transactionFailedStatus, transactionID); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
 			Error("execution updating status into transactions query error")
