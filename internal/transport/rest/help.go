@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+const (
+	ctxUserIDKey     = "user-id"
+	ctxUserRoleIDKey = "user-role-id"
+	ctxUsernameKey   = "username"
+)
+const AuthorizationHeaderName = "Authorization"
+
 func getUserIDFromContext(ctx *gin.Context) (int, error) {
 	val, ok := ctx.Get("user-id")
 	if !ok {
@@ -89,4 +96,36 @@ func GetUsernameFromContext(c *gin.Context) (string, error) {
 	}
 
 	return usernameStr, nil
+}
+
+func getUserId(c *gin.Context) (int64, error) {
+	userIDInterface, exists := c.Get(ctxUserIDKey)
+	if !exists {
+		return 0, errors.New("user ID not found in context")
+	}
+
+	userID, ok := userIDInterface.(int)
+	if !ok {
+		return 0, errors.New("user ID is of invalid type")
+	}
+
+	return int64(userID), nil
+}
+
+// isAdmin checks if the current user has admin privileges
+func isAdmin(c *gin.Context) bool {
+	// Get the user role ID from context
+	roleIDInterface, exists := c.Get(ctxUserRoleIDKey)
+	if !exists {
+		return false
+	}
+
+	// Convert the interface to int and check if it's the admin role
+	roleID, ok := roleIDInterface.(int)
+	if !ok {
+		return false
+	}
+
+	// Admin role typically has ID 1
+	return roleID == 1
 }

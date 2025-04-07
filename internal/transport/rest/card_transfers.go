@@ -240,7 +240,7 @@ func (h *CardTransfersHandler) GetCardsByUserID(c *gin.Context) {
 	c.JSON(http.StatusOK, paginatedResponse{
 		Data:       cards,
 		TotalCount: totalCount,
-		Page:       int64(params.Page),
-		PageSize:   int64(params.PageSize),
+		Page:       params.Page,
+		PageSize:   params.PageSize,
 	})
 }

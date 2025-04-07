@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-const (
-	ctxUserIDKey     = "user-id"
-	ctxUserRoleIDKey = "user-role-id"
-	ctxUsernameKey   = "username"
-)
-const AuthorizationHeaderName = "Authorization"
-
 func LoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		t := time.Now()
@@ -65,7 +58,6 @@ func (a *Auth) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// AccessControlMiddleware проверяет, имеет ли пользователь доступ к запрашиваемому ресурсу
 func AccessControlMiddleware(accessControl *service.AccessControl, roleRepository service.RoleRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var roleName, method, path string

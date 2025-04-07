@@ -11,7 +11,6 @@ type errorResponse struct {
 	Message string `json:"message"`
 }
 
-// newErrorResponse creates a standard error response and aborts the request
 func newErrorResponse(c *gin.Context, statusCode int, message string) {
 	c.AbortWithStatusJSON(statusCode, errorResponse{
 		Message: message,

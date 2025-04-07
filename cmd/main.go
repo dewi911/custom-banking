@@ -98,6 +98,7 @@ func main() {
 	loansRepository := repository.NewLoans(db)
 	stakingRepository := repository.NewStaking(db)
 	cardTransfersRepository := repository.NewCardTransfers(db)
+	insuranceRepository := repository.NewInsurance(db)
 
 	logrus.Info("Initializing services...")
 	accessControl := service.NewAccessControl(rolesRepository)
@@ -110,6 +111,7 @@ func main() {
 	loanService := service.NewLoanService(loansRepository, accountRepository)
 	stakingService := service.NewStakingService(stakingRepository, accountRepository)
 	cardTransfersService := service.NewCardTransfersService(cardTransfersRepository)
+	insuranceService := service.NewInsuranceService(insuranceRepository, accountRepository, transactionRepository)
 
 	logrus.Info("Initializing transport layer...")
 	authTransport := rest.NewAuth(usersService)
@@ -121,6 +123,7 @@ func main() {
 	loanHandler := rest.NewLoanHandler(loanService)
 	stakingHandler := rest.NewStakingHandler(stakingService)
 	cardTransfersHandler := rest.NewCardTransfersHandler(cardTransfersService)
+	insuranceHandler := rest.NewInsuranceHandler(insuranceService)
 
 	accessControlMiddleware := rest.AccessControlMiddleware(accessControl, rolesRepository)
 
@@ -142,6 +145,7 @@ func main() {
 	loanHandler.Register(v1)
 	stakingHandler.Register(v1)
 	cardTransfersHandler.Register(v1)
+	insuranceHandler.InitRoutes(v1)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Port),

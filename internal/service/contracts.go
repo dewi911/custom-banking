@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"custom-banking/internal/models"
+	"time"
 )
 
 type RolesRepository interface {
@@ -100,4 +101,19 @@ type CardTransfersRepository interface {
 	GetTransactionDetails(transactionID int64) (*models.CardTransferResult, error)
 	ListCardTransactions(cardID int64, limit, offset int64) ([]*models.CardTransferResult, error)
 	GetCardsByUserID(userID int64, params models.CardListParams) ([]*models.CardInfo, int64, error)
+}
+
+type InsuranceRepository interface {
+	Create(insurance *models.Insurance) (int64, error)
+	GetByID(id int64) (*models.Insurance, error)
+	GetByUserID(userID int64) ([]*models.Insurance, error)
+	UpdateStatus(id int64, status string) error
+	List(params models.InsuranceListParams) ([]*models.Insurance, int64, error)
+	GeneratePolicyNumber() (string, error)
+
+	CreateClaim(claim *models.InsuranceClaim) (int64, error)
+	GetClaimByID(id int64) (*models.InsuranceClaim, error)
+	GetClaimsByInsuranceID(insuranceID int64) ([]*models.InsuranceClaim, error)
+	UpdateClaimStatus(id int64, status string, resolutionDate time.Time) error
+	ListClaims(insuranceID int64, page, pageSize int64) ([]*models.InsuranceClaim, int64, error)
 }

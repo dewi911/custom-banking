@@ -73,3 +73,17 @@ type CardTransfersService interface {
 	ListCardTransactions(cardID int64, page, pageSize int64) ([]*models.CardTransferResult, error)
 	GetCardsByUserID(userID int64, params models.CardListParams) ([]*models.CardInfo, int64, error)
 }
+
+type InsuranceService interface {
+	Create(ctx context.Context, request models.InsuranceRequest) (*models.Insurance, error)
+	GetByID(ctx context.Context, id int64) (*models.Insurance, error)
+	GetByUserID(ctx context.Context, userID int64) ([]*models.Insurance, error)
+	UpdateStatus(ctx context.Context, id int64, status string) error
+	List(ctx context.Context, params models.InsuranceListParams) ([]*models.Insurance, int64, error)
+
+	CreateClaim(ctx context.Context, request models.InsuranceClaimRequest) (*models.InsuranceClaim, error)
+	GetClaimByID(ctx context.Context, id int64) (*models.InsuranceClaim, error)
+	GetClaimsByInsuranceID(ctx context.Context, insuranceID int64) ([]*models.InsuranceClaim, error)
+	UpdateClaimStatus(ctx context.Context, id int64, status string, userId int64) error
+	ListClaims(ctx context.Context, insuranceID int64, page, pageSize int64) ([]*models.InsuranceClaim, int64, error)
+}
