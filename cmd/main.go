@@ -95,6 +95,10 @@ func main() {
 	cardRepository := repository.NewCard(db)
 	eventRepository := repository.NewEvent(db)
 
+	loansRepository := repository.NewLoans(db)
+	stakingRepository := repository.NewStaking(db)
+	cardTransfersRepository := repository.NewCardTransfers(db)
+
 	logrus.Info("Initializing services...")
 	accessControl := service.NewAccessControl(rolesRepository)
 	usersService := service.NewUsers(userRepo, tokensRepository, rolesRepository, eventRepository)
@@ -103,12 +107,20 @@ func main() {
 	cardService := service.NewCard(cardRepository, userRepo, accountRepository, eventRepository, randomGenerator)
 	eventService := service.NewEvent(eventRepository)
 
+	loanService := service.NewLoanService(loansRepository, accountRepository)
+	stakingService := service.NewStakingService(stakingRepository, accountRepository)
+	cardTransfersService := service.NewCardTransfersService(cardTransfersRepository)
+
 	logrus.Info("Initializing transport layer...")
 	authTransport := rest.NewAuth(usersService)
 	accountTransport := rest.NewAccount(accountService)
 	transactionTransport := rest.NewTransaction(transactionService)
 	cardTransport := rest.NewCard(cardService)
 	eventTransport := rest.NewEvent(eventService)
+
+	loanHandler := rest.NewLoanHandler(loanService)
+	stakingHandler := rest.NewStakingHandler(stakingService)
+	cardTransfersHandler := rest.NewCardTransfersHandler(cardTransfersService)
 
 	accessControlMiddleware := rest.AccessControlMiddleware(accessControl, rolesRepository)
 
@@ -122,6 +134,14 @@ func main() {
 	transactionTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	cardTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	eventTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
+
+	v1 := g.Group("/api/v1")
+	v1.Use(authTransport.AuthMiddleware())
+
+	logrus.Info("Registering new API routes for loans, staking, and card transfers...")
+	loanHandler.Register(v1)
+	stakingHandler.Register(v1)
+	cardTransfersHandler.Register(v1)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Port),

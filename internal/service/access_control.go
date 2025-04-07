@@ -1,18 +1,14 @@
 package service
 
 import (
-	"context"
-	"custom-banking/internal/models"
 	"strings"
 )
 
-// AccessControl provides a simple role-based access control mechanism
 type AccessControl struct {
 	roleRepository RoleRepository
 	permissionMap  map[string]map[string][]string // role -> path -> methods
 }
 
-// NewAccessControl creates a new AccessControl instance
 func NewAccessControl(roleRepository RoleRepository) *AccessControl {
 	ac := &AccessControl{
 		roleRepository: roleRepository,
@@ -33,7 +29,6 @@ func NewAccessControl(roleRepository RoleRepository) *AccessControl {
 	return ac
 }
 
-// AddPermission adds a permission for a role
 func (ac *AccessControl) AddPermission(role, path string, methods []string) {
 	if _, exists := ac.permissionMap[role]; !exists {
 		ac.permissionMap[role] = make(map[string][]string)
@@ -41,7 +36,6 @@ func (ac *AccessControl) AddPermission(role, path string, methods []string) {
 	ac.permissionMap[role][path] = methods
 }
 
-// CheckPermission checks if a role has permission to access a path with a method
 func (ac *AccessControl) CheckPermission(role, path, method string) bool {
 	if role == "admin" {
 		return true
@@ -56,7 +50,6 @@ func (ac *AccessControl) CheckPermission(role, path, method string) bool {
 			}
 		}
 
-		// Check wildcard paths
 		for pattern, methods := range pathMap {
 			if strings.HasSuffix(pattern, "/*") {
 				prefix := strings.TrimSuffix(pattern, "/*")
@@ -72,10 +65,4 @@ func (ac *AccessControl) CheckPermission(role, path, method string) bool {
 	}
 
 	return false
-}
-
-// RoleRepository is the interface for accessing role data
-type RoleRepository interface {
-	GetByID(ctx context.Context, id int) (models.Role, error)
-	GetByName(ctx context.Context, name string) (models.Role, error)
 }

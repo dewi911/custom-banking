@@ -64,3 +64,40 @@ type UsersRepository interface {
 	UnblockUser(ctx context.Context, userID int) error
 	CheckBlockUser(ctx context.Context, userID int) (bool, error)
 }
+
+type RoleRepository interface {
+	GetByID(ctx context.Context, id int) (models.Role, error)
+	GetByName(ctx context.Context, name string) (models.Role, error)
+}
+
+type LoansRepository interface {
+	Create(loan *models.Loan) (int64, error)
+	GetByID(id int64) (*models.Loan, error)
+	GetByUserID(userID int64) ([]*models.Loan, error)
+	UpdateStatus(id int64, status string) error
+	UpdateRemainingAmount(id int64, amount float64) error
+	List(params models.LoanListParams) ([]*models.Loan, int, error)
+	CreatePayment(payment *models.LoanPayment) (int64, error)
+	GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error)
+}
+
+type StakingRepository interface {
+	Create(staking *models.Staking) (int64, error)
+	GetByID(id int64) (*models.Staking, error)
+	GetByUserID(userID int64) ([]*models.Staking, error)
+	UpdateStatus(id int64, status string) error
+	List(params models.StakingListParams) ([]*models.Staking, int, error)
+	CreateInterest(interest *models.StakingInterest) (int64, error)
+	GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error)
+	CalculateEarnedInterest(stakingID int64) (float64, error)
+}
+
+type CardTransfersRepository interface {
+	GetCardByNumber(cardNumber string) (*models.CardInfo, error)
+	GetCardByID(id int64) (*models.CardInfo, error)
+	GetAccountBalance(accountID int64) (float64, error)
+	CreateCardTransfer(fromCardID, toCardID int64, amount float64, description string) (int64, error)
+	GetTransactionDetails(transactionID int64) (*models.CardTransferResult, error)
+	ListCardTransactions(cardID int64, limit, offset int64) ([]*models.CardTransferResult, error)
+	GetCardsByUserID(userID int64, params models.CardListParams) ([]*models.CardInfo, int64, error)
+}

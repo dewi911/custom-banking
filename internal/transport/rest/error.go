@@ -1,10 +1,26 @@
 package rest
 
 import (
+	"github.com/gin-gonic/gin"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
 )
+
+type errorResponse struct {
+	Message string `json:"message"`
+}
+
+// newErrorResponse creates a standard error response and aborts the request
+func newErrorResponse(c *gin.Context, statusCode int, message string) {
+	c.AbortWithStatusJSON(statusCode, errorResponse{
+		Message: message,
+	})
+}
+
+type statusRequest struct {
+	Status string `json:"status" binding:"required"`
+}
 
 type CommonError struct {
 	Code    int    `json:"code"`

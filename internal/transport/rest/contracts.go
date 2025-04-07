@@ -44,3 +44,32 @@ type RoleRepository interface {
 type TransactionService interface {
 	GetTransactionList(ctx context.Context, accountID, userID int, ordering models.Orderings, paginator models.Paginator) ([]models.Transaction, error)
 }
+
+type LoanService interface {
+	Create(request models.LoanRequest) (*models.Loan, error)
+	GetByID(id int64) (*models.Loan, error)
+	GetByUserID(userID int64) ([]*models.Loan, error)
+	List(params models.LoanListParams) ([]*models.Loan, int, error)
+	UpdateStatus(id int64, status string) error
+	MakePayment(request models.LoanPaymentRequest) (*models.LoanPayment, error)
+	GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error)
+}
+
+type StakingService interface {
+	Create(request models.StakingRequest) (*models.Staking, error)
+	GetByID(id int64) (*models.Staking, error)
+	GetByUserID(userID int64) ([]*models.Staking, error)
+	List(params models.StakingListParams) ([]*models.Staking, int64, error)
+	Withdraw(request models.StakingWithdrawRequest) error
+	GetEarnedInterest(stakingID int64) (float64, error)
+	GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error)
+	CalculateProjectedInterest(amount float64, days int64, interestRate float64) float64
+}
+
+type CardTransfersService interface {
+	TransferBetweenCards(request models.CardTransferRequest) (*models.CardTransferResult, error)
+	GetCardByNumber(cardNumber string) (*models.CardInfo, error)
+	GetTransactionDetails(transactionID int64) (*models.CardTransferResult, error)
+	ListCardTransactions(cardID int64, page, pageSize int64) ([]*models.CardTransferResult, error)
+	GetCardsByUserID(userID int64, params models.CardListParams) ([]*models.CardInfo, int64, error)
+}
