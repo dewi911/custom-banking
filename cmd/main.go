@@ -99,6 +99,8 @@ func main() {
 	stakingRepository := repository.NewStaking(db)
 	cardTransfersRepository := repository.NewCardTransfers(db)
 	insuranceRepository := repository.NewInsurance(db)
+	cashbackRepository := repository.NewCashbackRepo(db)
+	invoiceRepository := repository.NewInvoiceRepo(db)
 
 	logrus.Info("Initializing services...")
 	accessControl := service.NewAccessControl(rolesRepository)
@@ -112,6 +114,8 @@ func main() {
 	stakingService := service.NewStakingService(stakingRepository, accountRepository)
 	cardTransfersService := service.NewCardTransfersService(cardTransfersRepository)
 	insuranceService := service.NewInsuranceService(insuranceRepository, accountRepository, transactionRepository)
+	cashbackService := service.NewCashbackService(cashbackRepository, accountRepository, transactionRepository)
+	invoiceService := service.NewInvoiceService(invoiceRepository, accountRepository, cardRepository, userRepo)
 
 	logrus.Info("Initializing transport layer...")
 	authTransport := rest.NewAuth(usersService)
@@ -124,6 +128,8 @@ func main() {
 	stakingHandler := rest.NewStakingHandler(stakingService)
 	cardTransfersHandler := rest.NewCardTransfersHandler(cardTransfersService)
 	insuranceHandler := rest.NewInsuranceHandler(insuranceService)
+	cashbackHandler := rest.NewCashbackHandler(cashbackService)
+	invoiceHandler := rest.NewInvoiceHandler(invoiceService)
 
 	accessControlMiddleware := rest.AccessControlMiddleware(accessControl, rolesRepository)
 
@@ -146,6 +152,8 @@ func main() {
 	stakingHandler.Register(v1)
 	cardTransfersHandler.Register(v1)
 	insuranceHandler.InitRoutes(v1)
+	cashbackHandler.InitRoutes(v1)
+	invoiceHandler.InitRoutes(v1)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.Port),

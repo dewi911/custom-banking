@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS invoice_items CASCADE;
+DROP TABLE IF EXISTS invoices CASCADE;
+DROP FUNCTION IF EXISTS update_invoices_updated_at() CASCADE; 

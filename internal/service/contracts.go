@@ -117,3 +117,38 @@ type InsuranceRepository interface {
 	UpdateClaimStatus(id int64, status string, resolutionDate time.Time) error
 	ListClaims(insuranceID int64, page, pageSize int64) ([]*models.InsuranceClaim, int64, error)
 }
+
+type CashbackRepository interface {
+	CreateCashbackSettings(settings *models.CashbackSettings) (int64, error)
+	GetCashbackSettingsByCardID(cardID int64) (*models.CashbackSettings, error)
+	UpdateCashbackSettings(settings *models.CashbackSettings) error
+	DeactivateCashbackSettings(cardID int64) error
+
+	CreateCashbackTransaction(transaction *models.CashbackTransaction) (int64, error)
+	GetCashbackTransactions(userID int64, filter models.CashbackTransactionFilter) ([]*models.CashbackTransaction, int64, error)
+	GetCashbackTransactionsByCardID(cardID int64) ([]*models.CashbackTransaction, error)
+	GetPendingCashbackAmount(userID int64) (float64, error)
+
+	GetOrCreateCashbackSummary(userID int64, accountID int64) (*models.CashbackSummary, error)
+	UpdateCashbackSummary(summary *models.CashbackSummary) error
+
+	ProcessCashbackForTransaction(transactionID int64, cardID int64) (*models.CashbackTransaction, error)
+	GetUsersPendingCashbackPayout() ([]*models.CashbackSummary, error)
+	UpdateCashbackTransactionsStatus(userID int64, status string) error
+}
+
+type InvoiceRepository interface {
+	CreateInvoice(invoice *models.Invoice) (int64, error)
+	GetInvoiceByID(id int64) (*models.Invoice, error)
+	GetInvoiceByNumber(invoiceNumber string) (*models.Invoice, error)
+	UpdateInvoiceStatus(id int64, status string) error
+	UpdateInvoicePaymentDetails(id int64, paymentMethod string, paidDate time.Time) error
+	ListInvoices(filter models.InvoiceFilter) ([]*models.Invoice, int64, error)
+	GetUserInvoices(userID int64, page, pageSize int64) ([]*models.Invoice, int64, error)
+	GenerateInvoiceNumber() (string, error)
+
+	CreateInvoiceItems(items []models.InvoiceItem) error
+	GetInvoiceItems(invoiceID int64) ([]models.InvoiceItem, error)
+
+	ProcessInvoicePayment(invoiceID int64, paymentMethod string, accountOrCardID int64) error
+}

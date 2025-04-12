@@ -87,3 +87,22 @@ type InsuranceService interface {
 	UpdateClaimStatus(ctx context.Context, id int64, status string, userId int64) error
 	ListClaims(ctx context.Context, insuranceID int64, page, pageSize int64) ([]*models.InsuranceClaim, int64, error)
 }
+
+type CashbackService interface {
+	ConfigureCashback(ctx context.Context, userID int64, cardID int64, rate float64, minAmount float64, maxAmount float64) error
+	GetCashbackSettings(ctx context.Context, cardID int64) (*models.CashbackSettings, error)
+	DeactivateCashback(ctx context.Context, cardID int64) error
+	GetCashbackTransactions(ctx context.Context, userID int64, filter models.CashbackTransactionFilter) ([]models.CashbackTransaction, int64, error)
+	GetPendingCashbackAmount(ctx context.Context, userID int64) (float64, error)
+	ProcessPayouts(ctx context.Context) error
+}
+
+type InvoiceService interface {
+	CreateInvoice(ctx context.Context, userID int64, request models.InvoiceRequest) (*models.Invoice, error)
+	GetInvoice(ctx context.Context, invoiceID int64, userID int64) (*models.Invoice, error)
+	GetInvoiceByNumber(ctx context.Context, invoiceNumber string) (*models.Invoice, error)
+	CancelInvoice(ctx context.Context, invoiceID int64, userID int64) error
+	GetUserInvoices(ctx context.Context, userID, page, pageSize int64) ([]*models.Invoice, int64, error)
+	ListInvoices(ctx context.Context, filter models.InvoiceFilter) ([]*models.Invoice, int64, error)
+	PayInvoice(ctx context.Context, userID int64, request models.InvoicePaymentRequest) (*models.Invoice, error)
+}
