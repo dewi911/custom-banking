@@ -170,21 +170,39 @@ func (r *Account) Create(ctx context.Context, userID, currencyID int, iban strin
 		"iban":        iban,
 	}
 
-	q := "INSERT INTO accounts (iban, user_id, currency_id, blocked) VALUES ($1, $2, $3, $4) returning *"
-	row := r.db.QueryRowContext(ctx, q, iban, userID, currencyID, false)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("begin transaction error")
+		return models.Account{}, errors.Wrap(err, "begin transaction error")
+	}
+
+	defer func() {
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				logrus.WithError(rbErr).
+					WithFields(fields).
+					Error("rollback transaction error")
+			}
+		}
+	}()
+
+	q := "INSERT INTO accounts (iban, currency_id, blocked, amount) VALUES ($1, $2, $3, $4) returning *"
+	row := tx.QueryRowContext(ctx, q, iban, currencyID, false, 0)
 	if row.Err() != nil {
-		logrus.WithError(row.Err()).
+		err = row.Err()
+		logrus.WithError(err).
 			WithFields(fields).
 			Error("execution creating account query error")
 
-		return models.Account{}, errors.Wrap(row.Err(), "execution creating account query error")
+		return models.Account{}, errors.Wrap(err, "execution creating account query error")
 	}
 
 	account := models.Account{}
-	if err := row.Scan(
+	if err = row.Scan(
 		&account.ID,
 		&account.Iban,
-		&account.UserID,
 		&account.Currency,
 		&account.Blocked,
 		&account.Amount,
@@ -195,6 +213,26 @@ func (r *Account) Create(ctx context.Context, userID, currencyID int, iban strin
 
 		return models.Account{}, errors.Wrap(err, "scanning row into struct error")
 	}
+
+	q = "INSERT INTO user_accounts (user_id, account_id, is_primary, access_level) VALUES ($1, $2, $3, $4)"
+	_, err = tx.ExecContext(ctx, q, userID, account.ID, true, "owner")
+	if err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("execution creating user_accounts relationship error")
+
+		return models.Account{}, errors.Wrap(err, "execution creating user_accounts relationship error")
+	}
+
+	if err = tx.Commit(); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("commit transaction error")
+
+		return models.Account{}, errors.Wrap(err, "commit transaction error")
+	}
+
+	account.UserID = userID
 
 	return account, nil
 }

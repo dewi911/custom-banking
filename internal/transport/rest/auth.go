@@ -17,9 +17,9 @@ func NewAuth(userService UserService) *Auth {
 }
 
 func (a *Auth) InjectRouters(ginEngine *gin.Engine, middlewares ...gin.HandlerFunc) {
-	auth := ginEngine.Group("/auth").Use(middlewares...)
+	auth := ginEngine.Group("/auth")
 	{
-		auth.POST("/sing-up", a.singUp)
+		auth.POST("/register", a.singUp)
 		auth.POST("/login", a.login)
 		auth.GET("/refresh", a.refresh)
 	}
@@ -39,6 +39,17 @@ func (a *Auth) singUp(ctx *gin.Context) {
 		return
 	}
 
+	if inp.Name == "" || inp.Surname == "" || inp.Email == "" || inp.Password == "" {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Missing required fields: name, surname, email, and password are required",
+		})
+		return
+	}
+
+	if inp.Username == "" {
+		inp.Username = inp.Email
+	}
+
 	err := a.userService.SingUp(ctx, inp)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"validation request body error": err.Error()})
@@ -52,6 +63,11 @@ func (a *Auth) login(ctx *gin.Context) {
 	var inp models.SingInInput
 	if err := ctx.ShouldBindJSON(&inp); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, NewBadRequestError("validation request body error", err))
+		return
+	}
+
+	if inp.Email == "" && inp.Username == "" {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Either email or username must be provided"})
 		return
 	}
 

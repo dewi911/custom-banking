@@ -24,7 +24,7 @@ func (r *Tokens) Create(ctx context.Context, token models.RefreshSession) error 
 		"name":       token,
 	}
 
-	_, err := r.db.ExecContext(ctx, "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)", token.ID, token.Token, token.ExpiresAt)
+	_, err := r.db.ExecContext(ctx, "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)", token.UserID, token.Token, token.ExpiresAt)
 	if err != nil {
 		logrus.WithError(err).
 			WithFields(fields).

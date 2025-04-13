@@ -6,6 +6,7 @@ import (
 )
 
 type eventType string
+type metadata map[string]any
 
 func (et eventType) String() string {
 	return string(et)
@@ -49,10 +50,10 @@ const (
 )
 
 type Event struct {
-	ID       int            `json:"id"`
-	UserID   int            `json:"user_id"`
-	Type     eventType      `json:"type"`
-	Message  string         `json:"message"`
-	Metadata map[string]any `json:"metadata"`
-	DateTime time.Time      `json:"date_time"`
+	ID       int       `json:"id"`
+	UserID   int       `json:"user_id"`
+	Type     eventType `json:"type"`
+	Message  string    `json:"message"`
+	Metadata metadata  `json:"metadata"`
+	DateTime time.Time `json:"date_time"`
 }

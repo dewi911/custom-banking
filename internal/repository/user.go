@@ -76,20 +76,20 @@ func (r *Users) Create(ctx context.Context, user models.User) error {
 	return nil
 }
 
-func (r *Users) GetByCredentials(ctx context.Context, email, password string) (models.User, error) {
+func (r *Users) GetByCredentials(ctx context.Context, login, password string) (models.User, error) {
 	fields := logrus.Fields{
 		"layer":      "repository",
 		"repository": "users",
 		"method":     "get",
-		"email":      email,
+		"login":      login,
 		"password":   password,
 	}
 
 	var user models.User
 
-	query := "SELECT * FROM users WHERE email = $1 AND password = $2"
+	query := "SELECT * FROM users WHERE (email = $1 OR username = $1) AND password = $2"
 
-	err := r.db.QueryRowxContext(ctx, query, email, password).StructScan(&user)
+	err := r.db.QueryRowxContext(ctx, query, login, password).StructScan(&user)
 	if err != nil {
 		logrus.WithFields(fields).
 			Error("execution get user query error")

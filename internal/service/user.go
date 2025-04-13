@@ -57,7 +57,16 @@ func (s *User) SingUp(ctx context.Context, inp models.SingUpInput) error {
 func (s *User) SingIn(ctx context.Context, inp models.SingInInput) (string, string, error) {
 	//todo password hasher
 
-	user, err := s.userRepo.GetByCredentials(ctx, inp.Email, inp.Password)
+	identifier := inp.Email
+	if identifier == "" {
+		identifier = inp.Username
+	}
+
+	if identifier == "" {
+		return "", "", errors.New("email or username required")
+	}
+
+	user, err := s.userRepo.GetByCredentials(ctx, identifier, inp.Password)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", "", errors.Wrapf(err, "GetByCredentials error getting user by email %s", inp.Email)
@@ -143,13 +152,15 @@ func (s *User) RefreshTokens(ctx context.Context, refreshToken string) (string, 
 }
 
 func (s *User) generateTokens(ctx context.Context, user models.User) (string, string, error) {
+	secretKey := []byte("secret")
+
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Subject:   fmt.Sprintf("%d:%d", user.Id, user.RoleID),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 	})
 
-	accessToken, err := t.SignedString([]byte(user.Email))
+	accessToken, err := t.SignedString(secretKey)
 	if err != nil {
 		return "", "", errors.Wrap(err, "creating and returning a complete, signed JWT token error")
 	}

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"custom-banking/internal/models"
+	"encoding/json"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
@@ -34,12 +35,25 @@ func (e *Event) CreateEvent(ctx context.Context, event models.Event) error {
 
 	query := "INSERT INTO event (user_id, type, metadata, time) VALUES ($1, $2, $3, now())"
 
-	if _, err := e.db.ExecContext(ctx, query, mEvent.UserID, mEvent.Type, mEvent.Metadata); err != nil {
+	var jsonMetadata []byte
+	var err error
+
+	if mEvent.Metadata != nil {
+		jsonMetadata, err = json.Marshal(mEvent.Metadata)
+		if err != nil {
+			logrus.WithError(err).
+				WithFields(fields).
+				Error("Failed to marshal metadata to JSON")
+			return errors.Wrap(err, "Failed to marshal metadata to JSON")
+		}
+	}
+
+	if _, err := e.db.ExecContext(ctx, query, mEvent.UserID, mEvent.Type, jsonMetadata); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
 			Error("Failed to create event")
 
-		return errors.Wrap(err, fmt.Sprintf("Failed to create event with user id %s", mEvent.UserID))
+		return errors.Wrap(err, fmt.Sprintf("Failed to create event with user id %d", mEvent.UserID))
 	}
 
 	return nil

@@ -29,6 +29,7 @@ type SingUpInput struct {
 
 type SingInInput struct {
 	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
