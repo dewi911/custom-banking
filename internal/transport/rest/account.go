@@ -181,13 +181,19 @@ func (t Account) getAccount(ctx *gin.Context) {
 }
 
 func (t Account) deleteAccount(ctx *gin.Context) {
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("getting current user error", err))
+		return
+	}
+
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, NewBadRequestError("wrong \"id\" request param", err))
 		return
 	}
 
-	if err := t.accService.DeleteAccount(ctx, id); err != nil {
+	if err := t.accService.DeleteAccount(ctx, userID, id); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("deletion account error", err))
 		return
 	}
@@ -198,6 +204,12 @@ func (t Account) deleteAccount(ctx *gin.Context) {
 // depositAccount gin handler function for deposit account endpoint.
 // [POST] /account/:id/deposit
 func (t Account) depositAccount(ctx *gin.Context) {
+	userID, err := getUserIDFromContext(ctx)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("getting current user error", err))
+		return
+	}
+
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, NewBadRequestError("wrong \"id\" request param", err))
@@ -210,7 +222,7 @@ func (t Account) depositAccount(ctx *gin.Context) {
 		return
 	}
 
-	err = t.accService.DepositAccount(ctx, id, req.Amount)
+	err = t.accService.DepositAccount(ctx, userID, id, req.Amount)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("deposit founds into account error", err))
 		return

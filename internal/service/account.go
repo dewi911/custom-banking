@@ -69,14 +69,14 @@ func (s Account) GetAccount(ctx context.Context, accountID, userID int) (models.
 	return account, nil
 }
 
-func (s Account) DeleteAccount(ctx context.Context, accountID int) error {
+func (s Account) DeleteAccount(ctx context.Context, userID, accountID int) error {
 	err := s.accountRepo.DeleteAccount(ctx, accountID)
 	if err != nil {
 		return errors.Wrap(err, "account deleting error")
 	}
 
 	event := models.Event{
-		UserID:  accountID,
+		UserID:  userID,
 		Type:    models.AccountDeletedEvent,
 		Message: "account successfully deleted",
 		Metadata: map[string]any{
@@ -91,7 +91,7 @@ func (s Account) DeleteAccount(ctx context.Context, accountID int) error {
 	return nil
 }
 
-func (s Account) DepositAccount(ctx context.Context, accountID int, amount float64) error {
+func (s Account) DepositAccount(ctx context.Context, userID, accountID int, amount float64) error {
 	exists, err := s.accountRepo.ExistsAccount(ctx, accountID)
 	if err != nil {
 		return errors.Wrap(err, "account existence check error")
@@ -116,6 +116,7 @@ func (s Account) DepositAccount(ctx context.Context, accountID int, amount float
 	}
 
 	event := models.Event{
+		UserID:  userID,
 		Type:    models.DepositEvent,
 		Message: "deposit account successful",
 		Metadata: map[string]any{

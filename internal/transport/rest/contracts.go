@@ -9,8 +9,8 @@ type AccountService interface {
 	Create(ctx context.Context, userID, currencyID int) (models.Account, error)
 	GetAccountsList(ctx context.Context, userID int, paginator models.Paginator, ordering models.Orderings) ([]models.Account, error)
 	GetAccount(ctx context.Context, accountID, userID int) (models.Account, error)
-	DeleteAccount(ctx context.Context, accountID int) error
-	DepositAccount(ctx context.Context, accountID int, amount float64) error
+	DeleteAccount(ctx context.Context, userID, accountID int) error
+	DepositAccount(ctx context.Context, userID, accountID int, amount float64) error
 	TransferAccount(ctx context.Context, fromAccountID, userID int, amount float64, toAccountIban string) error
 	BlockAccount(ctx context.Context, accountID, userID int) error
 	UnblockAccount(ctx context.Context, accountID, userID int) error

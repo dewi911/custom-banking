@@ -79,12 +79,14 @@ func (t *Card) GetCardListByUser(ctx *gin.Context) {
 	messageListCards := make([]models.Card, 0)
 	for _, card := range domainListCards {
 		messageCard := models.Card{
-			Id:             card.Id,
-			AccountId:      card.AccountId,
-			CardNumber:     card.CardNumber,
-			CardholderName: card.CardholderName,
-			ExpirationDate: card.ExpirationDate,
-			CvvCode:        card.CvvCode,
+			Id:                 card.Id,
+			AccountId:          card.AccountId,
+			CardNumber:         card.CardNumber,
+			CardholderName:     card.CardholderName,
+			ExpirationDate:     card.ExpirationDate,
+			CvvCode:            card.CvvCode,
+			CardType:           card.CardType,
+			CashbackPercentage: card.CashbackPercentage,
 		}
 		messageListCards = append(messageListCards, messageCard)
 	}
@@ -114,12 +116,14 @@ func (t *Card) getCardListByAccount(ctx *gin.Context) {
 	messageListCards := make([]models.Card, 0)
 	for _, card := range domainListCards {
 		messageCard := models.Card{
-			Id:             card.Id,
-			AccountId:      card.AccountId,
-			CardNumber:     card.CardNumber,
-			CardholderName: card.CardholderName,
-			ExpirationDate: card.ExpirationDate,
-			CvvCode:        card.CvvCode,
+			Id:                 card.Id,
+			AccountId:          card.AccountId,
+			CardNumber:         card.CardNumber,
+			CardholderName:     card.CardholderName,
+			ExpirationDate:     card.ExpirationDate,
+			CvvCode:            card.CvvCode,
+			CardType:           card.CardType,
+			CashbackPercentage: card.CashbackPercentage,
 		}
 		messageListCards = append(messageListCards, messageCard)
 	}
@@ -159,12 +163,14 @@ func (t *Card) getCard(ctx *gin.Context) {
 	}
 
 	messageCard := models.Card{
-		Id:             domainCard.Id,
-		AccountId:      domainCard.AccountId,
-		CardNumber:     domainCard.CardNumber,
-		CardholderName: domainCard.CardholderName,
-		ExpirationDate: domainCard.ExpirationDate,
-		CvvCode:        domainCard.CvvCode,
+		Id:                 domainCard.Id,
+		AccountId:          domainCard.AccountId,
+		CardNumber:         domainCard.CardNumber,
+		CardholderName:     domainCard.CardholderName,
+		ExpirationDate:     domainCard.ExpirationDate,
+		CvvCode:            domainCard.CvvCode,
+		CardType:           domainCard.CardType,
+		CashbackPercentage: domainCard.CashbackPercentage,
 	}
 
 	ctx.JSON(http.StatusOK, messageCard)

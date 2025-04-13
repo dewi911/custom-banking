@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 type Event struct {
@@ -69,7 +70,7 @@ func (e *Event) GetEventsList(ctx context.Context, userID int) ([]models.Event, 
 
 	query := "SELECT * FROM event WHERE user_id = $1 ORDER BY time DESC"
 
-	rows, err := e.db.QueryContext(ctx, query, userID)
+	rows, err := e.db.QueryxContext(ctx, query, userID)
 	if err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -77,11 +78,20 @@ func (e *Event) GetEventsList(ctx context.Context, userID int) ([]models.Event, 
 
 		return nil, errors.Wrap(err, fmt.Sprintf("execution getting events list query error"))
 	}
+	defer rows.Close()
 
 	var eventsList []models.Event
 	for rows.Next() {
-		var mevent models.Event
-		if err = rows.Scan(&mevent); err != nil {
+		var mevent struct {
+			ID       int             `db:"id"`
+			UserID   int             `db:"user_id"`
+			Type     string          `db:"type"`
+			Message  string          `db:"message"`
+			Metadata json.RawMessage `db:"metadata"`
+			DateTime time.Time       `db:"time"`
+		}
+
+		if err = rows.StructScan(&mevent); err != nil {
 			logrus.WithError(err).
 				WithFields(fields).
 				Error("scanning event row error")
@@ -89,7 +99,7 @@ func (e *Event) GetEventsList(ctx context.Context, userID int) ([]models.Event, 
 			return nil, errors.Wrap(err, "scanning event row error")
 		}
 
-		eventType, err := models.NewEventTypeFromString(mevent.Type.String())
+		eventType, err := models.NewEventTypeFromString(mevent.Type)
 		if err != nil {
 			logrus.WithError(err).
 				WithFields(fields).
@@ -97,15 +107,33 @@ func (e *Event) GetEventsList(ctx context.Context, userID int) ([]models.Event, 
 
 			return nil, errors.Wrap(err, "scanning event row error")
 		}
+		var metadata map[string]interface{}
+		if len(mevent.Metadata) > 0 {
+			if err := json.Unmarshal(mevent.Metadata, &metadata); err != nil {
+				logrus.WithError(err).
+					WithFields(fields).
+					Error("unmarshaling metadata error")
+
+				return nil, errors.Wrap(err, "unmarshaling metadata error")
+			}
+		}
 
 		eventsList = append(eventsList, models.Event{
 			ID:       mevent.ID,
 			UserID:   mevent.UserID,
 			Type:     eventType,
 			Message:  mevent.Message,
-			Metadata: mevent.Metadata,
+			Metadata: metadata,
 			DateTime: mevent.DateTime,
 		})
+	}
+
+	if err = rows.Err(); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("error iterating over result rows")
+
+		return nil, errors.Wrap(err, "error iterating over result rows")
 	}
 
 	return eventsList, nil

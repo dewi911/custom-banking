@@ -18,6 +18,8 @@ func NewAccessControl(roleRepository RoleRepository) *AccessControl {
 	ac.AddPermission("admin", "/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
 
 	ac.AddPermission("user", "/account/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
+	ac.AddPermission("user", "/card/", []string{"GET"})
+	ac.AddPermission("user", "/event/", []string{"GET"})
 	ac.AddPermission("user", "/api/auth/*", []string{"GET", "POST"})
 	ac.AddPermission("user", "/api/accounts/*", []string{"GET"})
 	ac.AddPermission("user", "/api/transactions/*", []string{"GET", "POST"})

@@ -50,10 +50,10 @@ const (
 )
 
 type Event struct {
-	ID       int       `json:"id"`
-	UserID   int       `json:"user_id"`
-	Type     eventType `json:"type"`
-	Message  string    `json:"message"`
-	Metadata metadata  `json:"metadata"`
-	DateTime time.Time `json:"date_time"`
+	ID       int       `json:"id" db:"id"`
+	UserID   int       `json:"user_id" db:"user_id"`
+	Type     eventType `json:"type" db:"type"`
+	Message  string    `json:"message" db:"message"`
+	Metadata metadata  `json:"metadata" db:"metadata"`
+	DateTime time.Time `json:"time" db:"time"`
 }

@@ -90,7 +90,7 @@ func (r *Card) GetCardListUser(ctx context.Context, userID int) ([]models.Card, 
 		"user_id":    userID,
 	}
 
-	query := "SELECT c.* FROM cards c INNER JOIN accounts a on a.id = c.account_id WHERE a.user_id = $1 ORDER BY a.currency_id DESC"
+	query := "SELECT c.* FROM cards c INNER JOIN user_accounts ua on ua.account_id = c.account_id WHERE ua.user_id = $1 ORDER BY c.id DESC"
 
 	rows, err := r.db.QueryxContext(ctx, query, userID)
 	if err != nil && rows.Err() != nil {
@@ -100,6 +100,7 @@ func (r *Card) GetCardListUser(ctx context.Context, userID int) ([]models.Card, 
 
 		return nil, errors.Wrap(rows.Err(), "execution select list cards query error")
 	}
+	defer rows.Close()
 
 	ListCards := make([]models.Card, 0)
 	for rows.Next() {
@@ -112,6 +113,13 @@ func (r *Card) GetCardListUser(ctx context.Context, userID int) ([]models.Card, 
 			return nil, errors.Wrap(err, "scanning row into struct error")
 		}
 		ListCards = append(ListCards, card)
+	}
+
+	if err := rows.Err(); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("error iterating over result rows")
+		return nil, errors.Wrap(err, "error iterating over result rows")
 	}
 
 	return ListCards, nil
@@ -126,7 +134,7 @@ func (r *Card) GetCardListByAccount(ctx context.Context, userID, accountID int) 
 		"account_id": accountID,
 	}
 
-	query := "SELECT c.* FROM cards c INNER JOIN accounts a on a.id = c.account_id WHERE a.user_id = $1 AND a.id = $2 ORDER BY a.currency_id DESC"
+	query := "SELECT c.* FROM cards c INNER JOIN user_accounts ua ON ua.account_id = c.account_id WHERE ua.user_id = $1 AND c.account_id = $2 ORDER BY c.id DESC"
 
 	rows, err := r.db.QueryxContext(ctx, query, userID, accountID)
 	if err != nil && rows.Err() != nil {
@@ -136,6 +144,7 @@ func (r *Card) GetCardListByAccount(ctx context.Context, userID, accountID int) 
 
 		return nil, errors.Wrap(rows.Err(), "execution select list cards query error")
 	}
+	defer rows.Close()
 
 	ListCards := make([]models.Card, 0)
 	for rows.Next() {
@@ -148,6 +157,13 @@ func (r *Card) GetCardListByAccount(ctx context.Context, userID, accountID int) 
 			return nil, errors.Wrap(err, "scanning row into struct error")
 		}
 		ListCards = append(ListCards, card)
+	}
+
+	if err := rows.Err(); err != nil {
+		logrus.WithError(err).
+			WithFields(fields).
+			Error("error iterating over result rows")
+		return nil, errors.Wrap(err, "error iterating over result rows")
 	}
 
 	return ListCards, nil
