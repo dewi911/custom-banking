@@ -50,12 +50,14 @@ func (t *Card) createCard(ctx *gin.Context) {
 	}
 
 	messageCard := models.Card{
-		Id:             domainCard.Id,
-		AccountId:      domainCard.AccountId,
-		CardNumber:     domainCard.CardNumber,
-		CardholderName: domainCard.CardholderName,
-		ExpirationDate: domainCard.ExpirationDate,
-		CvvCode:        domainCard.CvvCode,
+		Id:                 domainCard.Id,
+		AccountId:          domainCard.AccountId,
+		CardNumber:         domainCard.CardNumber,
+		CardholderName:     domainCard.CardholderName,
+		ExpirationDate:     domainCard.ExpirationDate,
+		CvvCode:            domainCard.CvvCode,
+		CardType:           domainCard.CardType,
+		CashbackPercentage: domainCard.CashbackPercentage,
 	}
 
 	ctx.JSON(http.StatusCreated, messageCard)

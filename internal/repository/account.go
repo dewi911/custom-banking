@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"custom-banking/internal/models"
+	"database/sql"
 	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
@@ -29,7 +30,7 @@ func (r *Account) GetUserIDByAccountID(ctx context.Context, accountID int) (int,
 
 	var userID int
 
-	row := r.db.QueryRowxContext(ctx, "SELECT user_id FROM accounts WHERE id = $1", accountID)
+	row := r.db.QueryRowxContext(ctx, "SELECT user_id FROM user_accounts WHERE account_id = $1 AND access_level = 'owner'", accountID)
 	if err := row.Err(); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -247,19 +248,31 @@ func (r *Account) GetAccountsList(ctx context.Context, userID int, paginator mod
 
 	listAccounts := make([]models.Account, 0, paginator.PerPage)
 
-	qb := squirrel.Select("*").
-		From("accounts").
-		Where("user_id = ?", userID)
+	qb := squirrel.Select(
+		"a.id",
+		"a.iban",
+		"ua.user_id",
+		"c.code as currency",
+		"a.blocked",
+		"a.amount",
+	).
+		From("accounts a").
+		Join("user_accounts ua ON ua.account_id = a.id").
+		Join("currency c ON c.id = a.currency_id").
+		Where("ua.user_id = ?", userID)
 
 	if ordering != nil {
 		var parts []string
 		for field, direction := range ordering {
-			parts = append(parts, fmt.Sprintf("%s %s", field, strings.ToUpper(direction)))
+			if field == "currency" {
+				parts = append(parts, fmt.Sprintf("c.code %s", strings.ToUpper(direction)))
+			} else {
+				parts = append(parts, fmt.Sprintf("a.%s %s", field, strings.ToUpper(direction)))
+			}
 		}
-
 		qb = qb.OrderBy(parts...)
 	} else {
-		qb = qb.OrderBy("id ASC")
+		qb = qb.OrderBy("a.id ASC")
 	}
 
 	qb = qb.Limit(uint64(paginator.PerPage)).
@@ -267,22 +280,38 @@ func (r *Account) GetAccountsList(ctx context.Context, userID int, paginator mod
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, params, err := qb.ToSql()
+	if err != nil {
+		logrus.WithError(err).WithFields(fields).Error("building query error")
+		return nil, errors.Wrap(err, "error building accounts list query")
+	}
 
 	rows, err := r.db.QueryxContext(ctx, query, params...)
-	if err != nil || rows.Err() != nil {
-		logrus.WithError(err).
-			WithFields(fields).
-			Error("execution getting list account by id query error")
-
+	if err != nil {
+		logrus.WithError(err).WithFields(fields).Error("execution getting list account query error")
 		return nil, errors.Wrap(err, "error execution getting accounts list query")
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var account models.Account
-		if err := rows.StructScan(&account); err != nil {
-			return nil, errors.Wrap(err, "error scanning row into struct")
+		err := rows.Scan(
+			&account.ID,
+			&account.Iban,
+			&account.UserID,
+			&account.Currency,
+			&account.Blocked,
+			&account.Amount,
+		)
+		if err != nil {
+			logrus.WithError(err).WithFields(fields).Error("error scanning row")
+			return nil, errors.Wrap(err, "error scanning row")
 		}
 		listAccounts = append(listAccounts, account)
+	}
+
+	if err = rows.Err(); err != nil {
+		logrus.WithError(err).WithFields(fields).Error("rows error")
+		return nil, errors.Wrap(err, "rows error")
 	}
 
 	return listAccounts, nil
@@ -299,7 +328,25 @@ func (r Account) GetAccount(ctx context.Context, accountID, userID int) (models.
 
 	var account models.Account
 
-	row := r.db.QueryRowxContext(ctx, "SELECT * FROM  accounts WHERE id=$1 AND user_id=$2", accountID, userID)
+	query := `
+        SELECT 
+            a.id,
+            a.iban,
+            ua.user_id,
+            c.code AS currency,
+            a.blocked,
+            a.amount
+        FROM 
+            accounts a
+        JOIN 
+            user_accounts ua ON ua.account_id = a.id
+        JOIN 
+            currency c ON c.id = a.currency_id
+        WHERE 
+            a.id = $1 AND ua.user_id = $2
+    `
+
+	row := r.db.QueryRowxContext(ctx, query, accountID, userID)
 	if err := row.Err(); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -308,7 +355,22 @@ func (r Account) GetAccount(ctx context.Context, accountID, userID int) (models.
 		return models.Account{}, errors.Wrap(err, "error execution getting account by id query")
 	}
 
-	if err := row.StructScan(&account); err != nil {
+	err := row.Scan(
+		&account.ID,
+		&account.Iban,
+		&account.UserID,
+		&account.Currency,
+		&account.Blocked,
+		&account.Amount,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			logrus.WithFields(fields).
+				Info("account not found")
+			return models.Account{}, errors.New("account not found")
+		}
+
 		logrus.WithError(err).
 			WithFields(fields).
 			Error("scanning account query result into struct error")

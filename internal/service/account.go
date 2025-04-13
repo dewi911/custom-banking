@@ -79,6 +79,9 @@ func (s Account) DeleteAccount(ctx context.Context, accountID int) error {
 		UserID:  accountID,
 		Type:    models.AccountDeletedEvent,
 		Message: "account successfully deleted",
+		Metadata: map[string]any{
+			"account_id": accountID,
+		},
 	}
 
 	if err := s.eventRepo.CreateEvent(ctx, event); err != nil {

@@ -157,7 +157,7 @@ func (s *User) generateTokens(ctx context.Context, user models.User) (string, st
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Subject:   fmt.Sprintf("%d:%d", user.Id, user.RoleID),
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
 	})
 
 	accessToken, err := t.SignedString(secretKey)

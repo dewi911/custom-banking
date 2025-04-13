@@ -21,6 +21,7 @@ func NewCard(db *sqlx.DB) *Card {
 
 func (r *Card) CreateCard(ctx context.Context, accountID int, cardNumber string, cardholderName string, cvvCode string) (models.Card, error) {
 	expirationDate := time.Now().AddDate(defaultCardExpirationPeriodYears, 0, 0)
+	cardType := "standard"
 
 	fields := logrus.Fields{
 		"layer":           "repository",
@@ -32,9 +33,10 @@ func (r *Card) CreateCard(ctx context.Context, accountID int, cardNumber string,
 		"expiration_date": expirationDate,
 	}
 
-	query := "insert into cards (account_id, card_number, cardholder_name, expiration_date, cvv_code) values ($1, $2, $3, $4, $5) RETURNING *"
+	query := "INSERT INTO cards (account_id, card_number, cardholder_name, expiration_date, cvv_code, card_type, cashback_percentage) " +
+		"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, account_id, card_number, cardholder_name, expiration_date, cvv_code, card_type, cashback_percentage"
 
-	row := r.db.QueryRowxContext(ctx, query, accountID, cardNumber, cardholderName, expirationDate, cvvCode)
+	row := r.db.QueryRowxContext(ctx, query, accountID, cardNumber, cardholderName, expirationDate, cvvCode, cardType, 3)
 	if row.Err() != nil {
 		logrus.WithError(row.Err()).
 			WithFields(fields).
