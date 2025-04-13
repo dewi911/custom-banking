@@ -16,7 +16,7 @@ func NewTransaction(s TransactionService) *Transaction {
 }
 
 func (t *Transaction) InjectRoutes(r *gin.Engine, middlewares ...gin.HandlerFunc) {
-	transaction := r.Group("account/:id/transaction").Use(middlewares...)
+	transaction := r.Group("/account/:id/transaction").Use(middlewares...)
 	{
 		transaction.GET("/", t.getTransactionList)
 	}

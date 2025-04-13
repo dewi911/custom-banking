@@ -143,12 +143,11 @@ func main() {
 	transactionTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	cardTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	eventTransport.InjectRoutes(g, authTransport.AuthMiddleware(), accessControlMiddleware)
-
+	loanHandler.Register(g, authTransport.AuthMiddleware(), accessControlMiddleware)
 	v1 := g.Group("/api/v1")
 	v1.Use(authTransport.AuthMiddleware())
 
 	logrus.Info("Registering new API routes for loans, staking, and card transfers...")
-	loanHandler.Register(v1)
 	stakingHandler.Register(v1)
 	cardTransfersHandler.Register(v1)
 	insuranceHandler.InitRoutes(v1)

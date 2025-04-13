@@ -46,13 +46,13 @@ type TransactionService interface {
 }
 
 type LoanService interface {
-	Create(request models.LoanRequest) (*models.Loan, error)
-	GetByID(id int64) (*models.Loan, error)
-	GetByUserID(userID int64) ([]*models.Loan, error)
-	List(params models.LoanListParams) ([]*models.Loan, int, error)
-	UpdateStatus(id int64, status string) error
-	MakePayment(request models.LoanPaymentRequest) (*models.LoanPayment, error)
-	GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error)
+	Create(ctx context.Context, request models.LoanRequest) (*models.Loan, error)
+	GetByID(ctx context.Context, id int64) (*models.Loan, error)
+	GetByUserID(ctx context.Context, userID int64) ([]*models.Loan, error)
+	List(ctx context.Context, params models.LoanListParams) ([]*models.Loan, int, error)
+	UpdateStatus(ctx context.Context, id int64, status string) error
+	MakePayment(ctx context.Context, request models.LoanPaymentRequest) (*models.LoanPayment, error)
+	GetPaymentsByLoanID(ctx context.Context, loanID int64) ([]*models.LoanPayment, error)
 }
 
 type StakingService interface {

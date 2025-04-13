@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"custom-banking/internal/models"
 	"database/sql"
 	"errors"
@@ -17,7 +18,7 @@ func NewLoans(db *sqlx.DB) *LoansRepo {
 	return &LoansRepo{db: db}
 }
 
-func (r *LoansRepo) Create(loan *models.Loan) (int64, error) {
+func (r *LoansRepo) Create(ctx context.Context, loan *models.Loan) (int64, error) {
 	query := `
 		INSERT INTO loans 
 		(user_id, amount, currency_id, start_date, end_date, interest_rate, status, remaining_amount) 
@@ -46,7 +47,7 @@ func (r *LoansRepo) Create(loan *models.Loan) (int64, error) {
 	return id, nil
 }
 
-func (r *LoansRepo) GetByID(id int64) (*models.Loan, error) {
+func (r *LoansRepo) GetByID(ctx context.Context, id int64) (*models.Loan, error) {
 	query := `
 		SELECT l.*, c.code as currency_code
 		FROM loans l
@@ -79,7 +80,7 @@ func (r *LoansRepo) GetByID(id int64) (*models.Loan, error) {
 	return loan, nil
 }
 
-func (r *LoansRepo) GetByUserID(userID int64) ([]*models.Loan, error) {
+func (r *LoansRepo) GetByUserID(ctx context.Context, userID int64) ([]*models.Loan, error) {
 	query := `
 		SELECT l.*, c.code as currency_code
 		FROM loans l
@@ -119,7 +120,7 @@ func (r *LoansRepo) GetByUserID(userID int64) ([]*models.Loan, error) {
 	return loans, nil
 }
 
-func (r *LoansRepo) UpdateStatus(id int64, status string) error {
+func (r *LoansRepo) UpdateStatus(ctx context.Context, id int64, status string) error {
 	query := `UPDATE loans SET status = $1 WHERE id = $2`
 
 	res, err := r.db.Exec(query, status, id)
@@ -141,7 +142,7 @@ func (r *LoansRepo) UpdateStatus(id int64, status string) error {
 	return nil
 }
 
-func (r *LoansRepo) UpdateRemainingAmount(id int64, amount float64) error {
+func (r *LoansRepo) UpdateRemainingAmount(ctx context.Context, id int64, amount float64) error {
 	query := `UPDATE loans SET remaining_amount = $1 WHERE id = $2`
 
 	res, err := r.db.Exec(query, amount, id)
@@ -163,7 +164,7 @@ func (r *LoansRepo) UpdateRemainingAmount(id int64, amount float64) error {
 	return nil
 }
 
-func (r *LoansRepo) List(params models.LoanListParams) ([]*models.Loan, int, error) {
+func (r *LoansRepo) List(ctx context.Context, params models.LoanListParams) ([]*models.Loan, int, error) {
 	whereClause := "WHERE 1=1"
 	args := []interface{}{}
 	argCount := 1
@@ -238,7 +239,26 @@ func (r *LoansRepo) List(params models.LoanListParams) ([]*models.Loan, int, err
 	return loans, totalCount, nil
 }
 
-func (r *LoansRepo) CreatePayment(payment *models.LoanPayment) (int64, error) {
+func (r *LoansRepo) CreatePayment(ctx context.Context, payment *models.LoanPayment) (int64, error) {
+	//_, err := r.db.ExecContext(ctx, `
+	//	CREATE TABLE IF NOT EXISTS loan_payments (
+	//		id serial PRIMARY KEY,
+	//		loan_id integer REFERENCES loans(id),
+	//		amount numeric,
+	//		date timestamp,
+	//		status varchar(20),
+	//		payment_method varchar(50),
+	//		transaction_id integer
+	//	);
+	//
+	//	CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_id ON loan_payments (loan_id);
+	//`)
+	//
+	//if err != nil {
+	//	logrus.WithError(err).Error("LoansRepo.CreatePayment: error creating loan_payments table")
+	//	return 0, err
+	//}
+
 	query := `
 		INSERT INTO loan_payments
 		(loan_id, amount, date, status, payment_method, transaction_id)
@@ -247,7 +267,8 @@ func (r *LoansRepo) CreatePayment(payment *models.LoanPayment) (int64, error) {
 	`
 
 	var id int64
-	err := r.db.QueryRow(
+	err := r.db.QueryRowContext(
+		ctx,
 		query,
 		payment.LoanID,
 		payment.Amount,
@@ -265,7 +286,26 @@ func (r *LoansRepo) CreatePayment(payment *models.LoanPayment) (int64, error) {
 	return id, nil
 }
 
-func (r *LoansRepo) GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error) {
+func (r *LoansRepo) GetPaymentsByLoanID(ctx context.Context, loanID int64) ([]*models.LoanPayment, error) {
+	//_, err := r.db.ExecContext(ctx, `
+	//	CREATE TABLE IF NOT EXISTS loan_payments (
+	//		id serial PRIMARY KEY,
+	//		loan_id integer REFERENCES loans(id),
+	//		amount numeric,
+	//		date timestamp,
+	//		status varchar(20),
+	//		payment_method varchar(50),
+	//		transaction_id integer
+	//	);
+	//
+	//	CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_id ON loan_payments (loan_id);
+	//`)
+	//
+	//if err != nil {
+	//	logrus.WithError(err).Error("LoansRepo.GetPaymentsByLoanID: error creating loan_payments table")
+	//	return nil, err
+	//}
+
 	query := `
 		SELECT id, loan_id, amount, date, status, payment_method, transaction_id
 		FROM loan_payments
@@ -273,7 +313,7 @@ func (r *LoansRepo) GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, er
 		ORDER BY date DESC
 	`
 
-	rows, err := r.db.Query(query, loanID)
+	rows, err := r.db.QueryContext(ctx, query, loanID)
 	if err != nil {
 		logrus.WithError(err).Errorf("LoansRepo.GetPaymentsByLoanID: error getting payments for loan %d", loanID)
 		return nil, err

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -26,15 +25,15 @@ type Loan struct {
 	Status          string    `json:"status" db:"status"`
 	RemainingAmount float64   `json:"remaining_amount" db:"remaining_amount"`
 
-	CurrencyCode    string       `json:"currency_code,omitempty" db:"-"`
-	MonthlyPayment  float64      `json:"monthly_payment,omitempty" db:"-"`
-	NextPaymentDate sql.NullTime `json:"next_payment_date,omitempty" db:"-"`
+	CurrencyCode    string    `json:"currency_code,omitempty" db:"-"`
+	MonthlyPayment  float64   `json:"monthly_payment,omitempty" db:"-"`
+	NextPaymentDate time.Time `json:"next_payment_date,omitempty" db:"-"`
 }
 
 type LoanRequest struct {
-	UserID         int64   `json:"user_id" binding:"required"`
+	UserID         int64   `json:"user_id,omitempty"`
 	Amount         float64 `json:"amount" binding:"required,gt=0"`
-	CurrencyID     int64   `json:"currency_id" binding:"required"`
+	CurrencyID     int64   `json:"currency_id,omitempty"`
 	MonthsDuration int     `json:"months_duration" binding:"required,min=1,max=360"` // От 1 месяца до 30 лет
 	InterestRate   float64 `json:"interest_rate,omitempty"`
 }
@@ -50,9 +49,9 @@ type LoanPayment struct {
 }
 
 type LoanPaymentRequest struct {
-	LoanID        int64   `json:"loan_id" binding:"required"`
+	LoanID        int64   `json:"loan_id,omitempty"`
 	Amount        float64 `json:"amount" binding:"required,gt=0"`
-	AccountID     int64   `json:"account_id" binding:"required"`
+	AccountID     int64   `json:"account_id,omitempty"`
 	PaymentMethod string  `json:"payment_method,omitempty"`
 }
 

@@ -127,7 +127,14 @@ func (r *Account) GetAccountAmount(ctx context.Context, accountID, userID int) (
 
 	var amount float64
 
-	row := r.db.QueryRowxContext(ctx, "SELECT amount FROM  accounts WHERE id=$1 AND user_id=$2", accountID, userID)
+	query := `
+        SELECT a.amount 
+        FROM accounts a
+        JOIN user_accounts ua ON ua.account_id = a.id
+        WHERE a.id = $1 AND ua.user_id = $2
+    `
+
+	row := r.db.QueryRowxContext(ctx, query, accountID, userID)
 	if err := row.Scan(&amount); err != nil {
 		logrus.WithError(err).
 			WithFields(fields).
@@ -439,7 +446,23 @@ func (r Account) TransferAccount(ctx context.Context, fromAccountID, userID int,
 		return errors.Wrap(err, "begin transaction error")
 	}
 
-	if _, err := tx.ExecContext(ctx, "UPDATE accounts SET amount = amount - $1 WHERE id = $2 AND user_id = $3", amount, fromAccountID, userID); err != nil {
+	var count int
+	err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM user_accounts WHERE account_id = $1 AND user_id = $2", fromAccountID, userID).Scan(&count)
+	if err != nil {
+		if err := tx.Rollback(); err != nil {
+			return errors.Wrap(err, "rollback transaction error")
+		}
+		return errors.Wrap(err, "checking account ownership error")
+	}
+
+	if count == 0 {
+		if err := tx.Rollback(); err != nil {
+			return errors.Wrap(err, "rollback transaction error")
+		}
+		return errors.New("user does not have access to this account")
+	}
+
+	if _, err := tx.ExecContext(ctx, "UPDATE accounts SET amount = amount - $1 WHERE id = $2", amount, fromAccountID); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return errors.Wrap(err, "rollback transaction error")
 		}

@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"custom-banking/internal/models"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"time"
 )
@@ -21,21 +21,17 @@ func NewLoanService(loanRepo LoansRepository, accountRepo AccountRepository) *Lo
 	}
 }
 
-func (s *LoanService) Create(request models.LoanRequest) (*models.Loan, error) {
+func (s *LoanService) Create(ctx context.Context, request models.LoanRequest) (*models.Loan, error) {
 	if request.Amount <= 0 {
 		return nil, errors.New("loan amount must be positive")
 	}
 
-	if request.UserID <= 0 {
-		return nil, errors.New("invalid user ID")
-	}
-
 	if request.CurrencyID <= 0 {
-		return nil, errors.New("invalid currency ID")
+		request.CurrencyID = 1
 	}
 
 	if request.MonthsDuration <= 0 {
-		return nil, errors.New("loan duration must be positive")
+		request.MonthsDuration = 90
 	}
 
 	if request.InterestRate <= 0 {
@@ -43,7 +39,8 @@ func (s *LoanService) Create(request models.LoanRequest) (*models.Loan, error) {
 	}
 
 	startDate := time.Now()
-	endDate := startDate.AddDate(0, int(request.MonthsDuration), 0)
+	endDate := startDate.AddDate(0, request.MonthsDuration, 0)
+	nextPaymentDate := startDate.AddDate(0, 1, 0)
 
 	loan := &models.Loan{
 		UserID:          request.UserID,
@@ -54,9 +51,10 @@ func (s *LoanService) Create(request models.LoanRequest) (*models.Loan, error) {
 		InterestRate:    request.InterestRate,
 		Status:          models.LoanStatusPending,
 		RemainingAmount: request.Amount,
+		NextPaymentDate: nextPaymentDate,
 	}
 
-	id, err := s.loanRepo.Create(loan)
+	id, err := s.loanRepo.Create(ctx, loan)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.Create: error creating loan")
 		return nil, fmt.Errorf("failed to create loan: %w", err)
@@ -67,8 +65,8 @@ func (s *LoanService) Create(request models.LoanRequest) (*models.Loan, error) {
 	return loan, nil
 }
 
-func (s *LoanService) GetByID(id int64) (*models.Loan, error) {
-	loan, err := s.loanRepo.GetByID(id)
+func (s *LoanService) GetByID(ctx context.Context, id int64) (*models.Loan, error) {
+	loan, err := s.loanRepo.GetByID(ctx, id)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.GetByID: error getting loan")
 		return nil, err
@@ -76,8 +74,8 @@ func (s *LoanService) GetByID(id int64) (*models.Loan, error) {
 	return loan, nil
 }
 
-func (s *LoanService) GetByUserID(userID int64) ([]*models.Loan, error) {
-	loans, err := s.loanRepo.GetByUserID(userID)
+func (s *LoanService) GetByUserID(ctx context.Context, userID int64) ([]*models.Loan, error) {
+	loans, err := s.loanRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.GetByUserID: error getting loans")
 		return nil, err
@@ -85,7 +83,7 @@ func (s *LoanService) GetByUserID(userID int64) ([]*models.Loan, error) {
 	return loans, nil
 }
 
-func (s *LoanService) List(params models.LoanListParams) ([]*models.Loan, int, error) {
+func (s *LoanService) List(ctx context.Context, params models.LoanListParams) ([]*models.Loan, int, error) {
 	if params.Page < 1 {
 		params.Page = 1
 	}
@@ -93,7 +91,7 @@ func (s *LoanService) List(params models.LoanListParams) ([]*models.Loan, int, e
 		params.PageSize = 10
 	}
 
-	loans, count, err := s.loanRepo.List(params)
+	loans, count, err := s.loanRepo.List(ctx, params)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.List: error listing loans")
 		return nil, 0, err
@@ -101,7 +99,7 @@ func (s *LoanService) List(params models.LoanListParams) ([]*models.Loan, int, e
 	return loans, count, nil
 }
 
-func (s *LoanService) UpdateStatus(id int64, status string) error {
+func (s *LoanService) UpdateStatus(ctx context.Context, id int64, status string) error {
 	validStatuses := []string{
 		models.LoanStatusPending,
 		models.LoanStatusApproved,
@@ -124,7 +122,7 @@ func (s *LoanService) UpdateStatus(id int64, status string) error {
 		return fmt.Errorf("invalid loan status: %s", status)
 	}
 
-	err := s.loanRepo.UpdateStatus(id, status)
+	err := s.loanRepo.UpdateStatus(ctx, id, status)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.UpdateStatus: error updating loan status")
 		return err
@@ -132,7 +130,7 @@ func (s *LoanService) UpdateStatus(id int64, status string) error {
 	return nil
 }
 
-func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.LoanPayment, error) {
+func (s *LoanService) MakePayment(ctx context.Context, request models.LoanPaymentRequest) (*models.LoanPayment, error) {
 	if request.LoanID <= 0 {
 		return nil, errors.New("invalid loan ID")
 	}
@@ -145,7 +143,7 @@ func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.Lo
 		return nil, errors.New("invalid account ID")
 	}
 
-	loan, err := s.loanRepo.GetByID(request.LoanID)
+	loan, err := s.loanRepo.GetByID(ctx, request.LoanID)
 	if err != nil {
 		return nil, fmt.Errorf("loan not found: %w", err)
 	}
@@ -158,7 +156,6 @@ func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.Lo
 		return nil, fmt.Errorf("payment amount (%f) exceeds remaining loan amount (%f)", request.Amount, loan.RemainingAmount)
 	}
 
-	ctx := context.Background()
 	accountAmount, err := s.accountRepo.GetAccountAmount(ctx, int(request.AccountID), int(loan.UserID))
 	if err != nil {
 		return nil, fmt.Errorf("error getting account amount: %w", err)
@@ -181,16 +178,14 @@ func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.Lo
 		PaymentMethod: paymentMethod,
 	}
 
-	ctx = context.Background()
 	err = s.accountRepo.TransferAccount(ctx, int(request.AccountID), int(loan.UserID), request.Amount, "LOAN_PAYMENT")
 	if err != nil {
 		return nil, fmt.Errorf("failed to transfer funds from account: %w", err)
 	}
 
 	newRemainingAmount := loan.RemainingAmount - request.Amount
-	err = s.loanRepo.UpdateRemainingAmount(request.LoanID, newRemainingAmount)
+	err = s.loanRepo.UpdateRemainingAmount(ctx, request.LoanID, newRemainingAmount)
 	if err != nil {
-		ctx = context.Background()
 		s.accountRepo.DepositAccount(ctx, int(request.AccountID), request.Amount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to deposit funds from account: %w", err)
@@ -199,23 +194,26 @@ func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.Lo
 	}
 
 	if newRemainingAmount <= 0 {
-		err = s.loanRepo.UpdateStatus(request.LoanID, models.LoanStatusRepaid)
+		err = s.loanRepo.UpdateStatus(ctx, request.LoanID, models.LoanStatusRepaid)
 		if err != nil {
 			logrus.WithError(err).Warnf("Failed to update loan status to paid: %d", request.LoanID)
 		}
 	}
 
-	paymentID, err := s.loanRepo.CreatePayment(payment)
+	paymentID, err := s.loanRepo.CreatePayment(ctx, payment)
 	if err != nil {
-		s.loanRepo.UpdateRemainingAmount(request.LoanID, loan.RemainingAmount)
+		s.loanRepo.UpdateRemainingAmount(ctx, request.LoanID, loan.RemainingAmount)
+
 		if err != nil {
 			logrus.WithError(err).Warnf("Failed to create payment")
 		}
 		ctx = context.Background()
-		s.accountRepo.DepositAccount(ctx, int(request.AccountID), request.Amount)
-		if err != nil {
-			return nil, fmt.Errorf("failed to deposit funds from account: %w", err)
+		depositErr := s.accountRepo.DepositAccount(ctx, int(request.AccountID), request.Amount)
+
+		if depositErr != nil {
+			return nil, fmt.Errorf("failed to deposit funds to account during rollback: %w", depositErr)
 		}
+
 		return nil, fmt.Errorf("failed to record payment: %w", err)
 	}
 
@@ -223,8 +221,8 @@ func (s *LoanService) MakePayment(request models.LoanPaymentRequest) (*models.Lo
 	return payment, nil
 }
 
-func (s *LoanService) GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error) {
-	payments, err := s.loanRepo.GetPaymentsByLoanID(loanID)
+func (s *LoanService) GetPaymentsByLoanID(ctx context.Context, loanID int64) ([]*models.LoanPayment, error) {
+	payments, err := s.loanRepo.GetPaymentsByLoanID(ctx, loanID)
 	if err != nil {
 		logrus.WithError(err).Error("LoanService.GetPaymentsByLoanID: error getting payments")
 		return nil, err

@@ -18,8 +18,8 @@ func NewLoanHandler(service LoanService) *LoanHandler {
 	}
 }
 
-func (h *LoanHandler) Register(api *gin.RouterGroup) {
-	loans := api.Group("/loans")
+func (h *LoanHandler) Register(api *gin.Engine, middlewares ...gin.HandlerFunc) {
+	loans := api.Group("/loans").Use(middlewares...)
 	{
 		loans.POST("", h.CreateLoan)
 		loans.GET("/:id", h.GetLoanByID)
@@ -45,32 +45,20 @@ func (h *LoanHandler) Register(api *gin.RouterGroup) {
 func (h *LoanHandler) CreateLoan(c *gin.Context) {
 	var request models.LoanRequest
 
+	userIDFromCtx, err := getUserIDFromContext(c)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("getting current user error", err))
+		return
+	}
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		newErrorResponse(c, http.StatusBadRequest, "invalid input body")
 		return
 	}
 
-	if request.Amount <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "loan amount must be positive")
-		return
-	}
+	request.UserID = int64(userIDFromCtx)
 
-	if request.UserID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "user ID is required")
-		return
-	}
-
-	if request.CurrencyID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "currency ID is required")
-		return
-	}
-
-	if request.MonthsDuration <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "loan duration must be positive")
-		return
-	}
-
-	loan, err := h.service.Create(request)
+	loan, err := h.service.Create(c, request)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.CreateLoan: error creating loan")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to create loan")
@@ -99,7 +87,7 @@ func (h *LoanHandler) GetLoanByID(c *gin.Context) {
 		return
 	}
 
-	loan, err := h.service.GetByID(id)
+	loan, err := h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.GetLoanByID: error getting loan")
 		newErrorResponse(c, http.StatusNotFound, "loan not found")
@@ -127,7 +115,7 @@ func (h *LoanHandler) GetLoansByUserID(c *gin.Context) {
 		return
 	}
 
-	loans, err := h.service.GetByUserID(userID)
+	loans, err := h.service.GetByUserID(c, userID)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.GetLoansByUserID: error getting loans")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve loans")
@@ -177,7 +165,7 @@ func (h *LoanHandler) ListLoans(c *gin.Context) {
 		params.PageSize = pageSize
 	}
 
-	loans, totalCount, err := h.service.List(params)
+	loans, totalCount, err := h.service.List(c, params)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.ListLoans: error listing loans")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve loans")
@@ -224,16 +212,14 @@ func (h *LoanHandler) UpdateLoanStatus(c *gin.Context) {
 		return
 	}
 
-	// First check if loan exists
-	_, err = h.service.GetByID(id)
+	_, err = h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.UpdateLoanStatus: error getting loan")
 		newErrorResponse(c, http.StatusNotFound, "loan not found")
 		return
 	}
 
-	// Update loan status
-	err = h.service.UpdateStatus(id, request.Status)
+	err = h.service.UpdateStatus(c, id, request.Status)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.UpdateLoanStatus: error updating loan status")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to update loan status")
@@ -241,7 +227,8 @@ func (h *LoanHandler) UpdateLoanStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, statusResponse{
-		Status: "success",
+		Status:  "success",
+		Message: "loan updated",
 	})
 }
 
@@ -272,22 +259,14 @@ func (h *LoanHandler) MakePayment(c *gin.Context) {
 		return
 	}
 
-	// Set loan ID from path
 	request.LoanID = id
 
-	// Validate required fields
 	if request.Amount <= 0 {
 		newErrorResponse(c, http.StatusBadRequest, "payment amount must be positive")
 		return
 	}
 
-	if request.AccountID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "account ID is required")
-		return
-	}
-
-	// Process payment
-	payment, err := h.service.MakePayment(request)
+	payment, err := h.service.MakePayment(c, request)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.MakePayment: error making payment")
 		if err.Error() == "loan not found" {
@@ -321,18 +300,20 @@ func (h *LoanHandler) GetPaymentsByLoanID(c *gin.Context) {
 		return
 	}
 
-	// First check if loan exists
-	_, err = h.service.GetByID(id)
+	_, err = h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.GetPaymentsByLoanID: error getting loan")
 		newErrorResponse(c, http.StatusNotFound, "loan not found")
 		return
 	}
 
-	payments, err := h.service.GetPaymentsByLoanID(id)
+	payments, err := h.service.GetPaymentsByLoanID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("LoanHandler.GetPaymentsByLoanID: error getting payments")
+
+		c.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("failed to retrieve payments", err))
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve payments")
+
 		return
 	}
 

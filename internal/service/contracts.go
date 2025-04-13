@@ -72,14 +72,14 @@ type RoleRepository interface {
 }
 
 type LoansRepository interface {
-	Create(loan *models.Loan) (int64, error)
-	GetByID(id int64) (*models.Loan, error)
-	GetByUserID(userID int64) ([]*models.Loan, error)
-	UpdateStatus(id int64, status string) error
-	UpdateRemainingAmount(id int64, amount float64) error
-	List(params models.LoanListParams) ([]*models.Loan, int, error)
-	CreatePayment(payment *models.LoanPayment) (int64, error)
-	GetPaymentsByLoanID(loanID int64) ([]*models.LoanPayment, error)
+	Create(ctx context.Context, loan *models.Loan) (int64, error)
+	GetByID(ctx context.Context, id int64) (*models.Loan, error)
+	GetByUserID(ctx context.Context, userID int64) ([]*models.Loan, error)
+	UpdateStatus(ctx context.Context, id int64, status string) error
+	UpdateRemainingAmount(ctx context.Context, id int64, amount float64) error
+	List(ctx context.Context, params models.LoanListParams) ([]*models.Loan, int, error)
+	CreatePayment(ctx context.Context, payment *models.LoanPayment) (int64, error)
+	GetPaymentsByLoanID(ctx context.Context, loanID int64) ([]*models.LoanPayment, error)
 }
 
 type StakingRepository interface {
