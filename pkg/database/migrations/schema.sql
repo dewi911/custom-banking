@@ -150,6 +150,14 @@ CREATE TABLE IF NOT EXISTS "staking" (
   "status" varchar(20)
 );
 
+CREATE TABLE IF NOT EXISTS "staking_interests" (
+    "id" serial PRIMARY KEY,
+    "staking_id" integer REFERENCES staking(id),
+    "amount" numeric,
+    "date_calculated" timestamp DEFAULT CURRENT_TIMESTAMP,
+    "description" text
+);
+
 CREATE TABLE IF NOT EXISTS "loans" (
   "id" serial PRIMARY KEY,
   "user_id" integer,
@@ -283,6 +291,7 @@ CREATE INDEX IF NOT EXISTS idx_atm_transactions_account_id ON "atm_transactions"
 CREATE INDEX IF NOT EXISTS idx_user_branches_user_id ON "user_branches" ("user_id");
 CREATE INDEX IF NOT EXISTS idx_user_branches_branch_id ON "user_branches" ("branch_id");
 CREATE INDEX IF NOT EXISTS idx_loan_payments_loan_id ON loan_payments (loan_id);
+CREATE INDEX IF NOT EXISTS idx_staking_interests_staking_id ON "staking_interests" ("staking_id");
 
 
 INSERT INTO roles (id, name)
@@ -297,4 +306,68 @@ VALUES
   (3, 'British Pound', 'GBP'),
   (4, 'Japanese Yen', 'JPY'),
   (5, 'Russian Ruble', 'RUB')
-ON CONFLICT (id) DO NOTHING; 
+ON CONFLICT (id) DO NOTHING;
+
+
+CREATE OR REPLACE FUNCTION calculate_staking_interest()
+RETURNS TRIGGER AS $$
+DECLARE
+interest_amount NUMERIC;
+    last_calculation_date TIMESTAMP;
+    days_since_last NUMERIC;
+    daily_rate NUMERIC;
+BEGIN
+SELECT MAX(date_calculated) INTO last_calculation_date
+FROM staking_interests
+WHERE staking_id = NEW.id;
+
+IF last_calculation_date IS NULL THEN
+        last_calculation_date := NEW.start_date;
+END IF;
+
+    IF (CURRENT_TIMESTAMP - last_calculation_date < INTERVAL '1 day') OR
+       NEW.status != 'active' THEN
+        RETURN NEW;
+END IF;
+
+    days_since_last := EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_calculation_date)) / 86400;
+
+    daily_rate := NEW.interest_rate / 36500;
+
+    interest_amount := NEW.amount * daily_rate * days_since_last;
+
+INSERT INTO staking_interests (
+    staking_id,
+    amount,
+    date_calculated,
+    description
+) VALUES (
+             NEW.id,
+             interest_amount,
+             CURRENT_TIMESTAMP,
+             'Automatic daily interest calculation'
+         );
+
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_calculate_staking_interest
+AFTER UPDATE ON staking
+                    FOR EACH ROW
+                    EXECUTE FUNCTION calculate_staking_interest();
+
+CREATE OR REPLACE FUNCTION daily_interest_calculation()
+RETURNS void AS $$
+DECLARE
+staking_rec RECORD;
+BEGIN
+FOR staking_rec IN SELECT * FROM staking WHERE status = 'active' LOOP
+-- init trigger
+UPDATE staking
+SET id = staking_rec.id
+WHERE id = staking_rec.id;
+END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+

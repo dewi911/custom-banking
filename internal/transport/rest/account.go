@@ -86,7 +86,7 @@ func (t Account) getAccountsList(ctx *gin.Context) {
 
 	pag := models.Paginator{
 		Page:    1,
-		PerPage: 5,
+		PerPage: 30,
 	}
 
 	if sPage != "" {

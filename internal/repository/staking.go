@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"custom-banking/internal/models"
 	"database/sql"
 	"errors"
@@ -18,7 +19,7 @@ func NewStaking(db *sqlx.DB) *StakingRepo {
 	return &StakingRepo{db: db}
 }
 
-func (r *StakingRepo) Create(staking *models.Staking) (int64, error) {
+func (r *StakingRepo) Create(ctx context.Context, staking *models.Staking) (int64, error) {
 	query := `
 		INSERT INTO staking 
 		(user_id, amount, currency_id, start_date, end_date, interest_rate, status) 
@@ -46,7 +47,7 @@ func (r *StakingRepo) Create(staking *models.Staking) (int64, error) {
 	return id, nil
 }
 
-func (r *StakingRepo) GetByID(id int64) (*models.Staking, error) {
+func (r *StakingRepo) GetByID(ctx context.Context, id int64) (*models.Staking, error) {
 	query := `
 		SELECT s.*, c.code as currency_code
 		FROM staking s
@@ -75,7 +76,7 @@ func (r *StakingRepo) GetByID(id int64) (*models.Staking, error) {
 		return nil, err
 	}
 
-	earnedInterest, err := r.CalculateEarnedInterest(id)
+	earnedInterest, err := r.CalculateEarnedInterest(ctx, id)
 	if err != nil {
 		logrus.WithError(err).Errorf("StakingRepo.GetByID: error calculating earned interest for staking %d", id)
 	} else {
@@ -93,7 +94,7 @@ func (r *StakingRepo) GetByID(id int64) (*models.Staking, error) {
 	return staking, nil
 }
 
-func (r *StakingRepo) GetByUserID(userID int64) ([]*models.Staking, error) {
+func (r *StakingRepo) GetByUserID(ctx context.Context, userID int64) ([]*models.Staking, error) {
 	query := `
 		SELECT s.*, c.code as currency_code
 		FROM staking s
@@ -132,7 +133,7 @@ func (r *StakingRepo) GetByUserID(userID int64) ([]*models.Staking, error) {
 	return stakings, nil
 }
 
-func (r *StakingRepo) UpdateStatus(id int64, status string) error {
+func (r *StakingRepo) UpdateStatus(ctx context.Context, id int64, status string) error {
 	query := `UPDATE staking SET status = $1 WHERE id = $2`
 
 	res, err := r.db.Exec(query, status, id)
@@ -154,7 +155,7 @@ func (r *StakingRepo) UpdateStatus(id int64, status string) error {
 	return nil
 }
 
-func (r *StakingRepo) List(params models.StakingListParams) ([]*models.Staking, int, error) {
+func (r *StakingRepo) List(ctx context.Context, params models.StakingListParams) ([]*models.Staking, int, error) {
 	whereClause := "WHERE 1=1"
 	args := []interface{}{}
 	argCount := 1
@@ -228,10 +229,64 @@ func (r *StakingRepo) List(params models.StakingListParams) ([]*models.Staking, 
 	return stakings, totalCount, nil
 }
 
-func (r *StakingRepo) CreateInterest(interest *models.StakingInterest) (int64, error) {
+func (r *StakingRepo) CalculateDailyInterests(ctx context.Context) error {
+	checkQuery := `
+        SELECT COUNT(*) 
+        FROM staking
+        WHERE status = 'active' 
+        AND start_date <= CURRENT_DATE 
+        AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+    `
+
+	var count int
+	err := r.db.QueryRowContext(ctx, checkQuery).Scan(&count)
+	if err != nil {
+		logrus.WithError(err).Error("StakingRepo.CalculateDailyInterests: error checking active stakings")
+		return err
+	}
+
+	logrus.Infof("Found %d active stakings for interest calculation", count)
+
+	if count == 0 {
+		logrus.Warn("No active stakings found for interest calculation")
+		return nil
+	}
+
+	_, err = r.db.ExecContext(ctx, "SELECT * FROM staking_interests LIMIT 0")
+	if err != nil {
+		logrus.WithError(err).Error("Error accessing staking_interests table")
+		return err
+	}
+
+	query := `
+        INSERT INTO staking_interests (staking_id, amount, date_calculated, description)
+        SELECT 
+            id as staking_id,
+            amount * (interest_rate / 100 / 365) as amount,
+            CURRENT_TIMESTAMP as date,
+            'Daily interest accrual' as description
+        FROM staking
+        WHERE status = 'active' 
+        AND start_date <= CURRENT_DATE 
+        AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+    `
+
+	result, err := r.db.ExecContext(ctx, query)
+	if err != nil {
+		logrus.WithError(err).Error("StakingRepo.CalculateDailyInterests: error calculating daily interests")
+		return err
+	}
+
+	affected, _ := result.RowsAffected()
+	logrus.Infof("Inserted %d interest records", affected)
+
+	return nil
+}
+
+func (r *StakingRepo) CreateInterest(ctx context.Context, interest *models.StakingInterest) (int64, error) {
 	query := `
 		INSERT INTO staking_interests
-		(staking_id, amount, date, description)
+		(staking_id, amount, date_calculated, description)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id
 	`
@@ -241,7 +296,7 @@ func (r *StakingRepo) CreateInterest(interest *models.StakingInterest) (int64, e
 		query,
 		interest.StakingID,
 		interest.Amount,
-		interest.Date,
+		interest.DateCalculated,
 		interest.Description,
 	).Scan(&id)
 
@@ -253,12 +308,12 @@ func (r *StakingRepo) CreateInterest(interest *models.StakingInterest) (int64, e
 	return id, nil
 }
 
-func (r *StakingRepo) GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error) {
+func (r *StakingRepo) GetInterestsByStakingID(ctx context.Context, stakingID int64) ([]*models.StakingInterest, error) {
 	query := `
-		SELECT id, staking_id, amount, date, description
+		SELECT id, staking_id, amount, date_calculated, description
 		FROM staking_interests
 		WHERE staking_id = $1
-		ORDER BY date DESC
+		ORDER BY date_calculated DESC
 	`
 
 	rows, err := r.db.Query(query, stakingID)
@@ -275,7 +330,7 @@ func (r *StakingRepo) GetInterestsByStakingID(stakingID int64) ([]*models.Stakin
 			&interest.ID,
 			&interest.StakingID,
 			&interest.Amount,
-			&interest.Date,
+			&interest.DateCalculated,
 			&interest.Description,
 		)
 		if err != nil {
@@ -288,7 +343,7 @@ func (r *StakingRepo) GetInterestsByStakingID(stakingID int64) ([]*models.Stakin
 	return interests, nil
 }
 
-func (r *StakingRepo) CalculateEarnedInterest(stakingID int64) (float64, error) {
+func (r *StakingRepo) CalculateEarnedInterest(ctx context.Context, stakingID int64) (float64, error) {
 	query := `
 		SELECT COALESCE(SUM(amount), 0)
 		FROM staking_interests

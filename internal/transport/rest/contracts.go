@@ -56,14 +56,14 @@ type LoanService interface {
 }
 
 type StakingService interface {
-	Create(request models.StakingRequest) (*models.Staking, error)
-	GetByID(id int64) (*models.Staking, error)
-	GetByUserID(userID int64) ([]*models.Staking, error)
-	List(params models.StakingListParams) ([]*models.Staking, int64, error)
-	Withdraw(request models.StakingWithdrawRequest) error
-	GetEarnedInterest(stakingID int64) (float64, error)
-	GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error)
-	CalculateProjectedInterest(amount float64, days int64, interestRate float64) float64
+	Create(ctx context.Context, request models.StakingRequest) (*models.Staking, error)
+	GetByID(ctx context.Context, id int64) (*models.Staking, error)
+	GetByUserID(ctx context.Context, userID int64) ([]*models.Staking, error)
+	List(ctx context.Context, params models.StakingListParams) ([]*models.Staking, int64, error)
+	Withdraw(ctx context.Context, request models.StakingWithdrawRequest) error
+	GetEarnedInterest(ctx context.Context, stakingID int64) (float64, error)
+	GetInterestsByStakingID(ctx context.Context, stakingID int64) ([]*models.StakingInterest, error)
+	CalculateProjectedInterest(ctx context.Context, amount float64, days int64, interestRate float64) float64
 }
 
 type CardTransfersService interface {

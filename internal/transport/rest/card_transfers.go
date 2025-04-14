@@ -19,7 +19,7 @@ func NewCardTransfersHandler(service CardTransfersService) *CardTransfersHandler
 	}
 }
 
-func (h *CardTransfersHandler) Register(api *gin.RouterGroup) {
+func (h *CardTransfersHandler) Register(api *gin.Engine, middlewares ...gin.HandlerFunc) {
 	cards := api.Group("/cards")
 	{
 		cards.POST("/transfer", h.TransferBetweenCards)

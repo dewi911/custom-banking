@@ -18,8 +18,8 @@ func NewStakingHandler(service StakingService) *StakingHandler {
 	}
 }
 
-func (h *StakingHandler) Register(api *gin.RouterGroup) {
-	staking := api.Group("/staking")
+func (h *StakingHandler) Register(api *gin.Engine, middlewares ...gin.HandlerFunc) {
+	staking := api.Group("/staking").Use(middlewares...)
 	{
 		staking.POST("", h.CreateStaking)
 		staking.GET("/:id", h.GetStakingByID)
@@ -51,32 +51,15 @@ func (h *StakingHandler) CreateStaking(c *gin.Context) {
 		return
 	}
 
-	if request.Amount <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "staking amount must be positive")
+	userID, err := getUserIDFromContext(c)
+	if err != nil {
+		newErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if request.UserID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "user ID is required")
-		return
-	}
+	request.UserID = int64(userID)
 
-	if request.CurrencyID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "currency ID is required")
-		return
-	}
-
-	if request.DurationDays <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "staking duration must be positive")
-		return
-	}
-
-	if request.AccountID <= 0 {
-		newErrorResponse(c, http.StatusBadRequest, "account ID is required")
-		return
-	}
-
-	staking, err := h.service.Create(request)
+	staking, err := h.service.Create(c, request)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.CreateStaking: error creating staking")
 		if err.Error() == "insufficient funds in account" {
@@ -109,7 +92,7 @@ func (h *StakingHandler) GetStakingByID(c *gin.Context) {
 		return
 	}
 
-	staking, err := h.service.GetByID(id)
+	staking, err := h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingByID: error getting staking")
 		newErrorResponse(c, http.StatusNotFound, "staking not found")
@@ -137,7 +120,7 @@ func (h *StakingHandler) GetStakingsByUserID(c *gin.Context) {
 		return
 	}
 
-	stakings, err := h.service.GetByUserID(userID)
+	stakings, err := h.service.GetByUserID(c, userID)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingsByUserID: error getting stakings")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve stakings")
@@ -164,10 +147,10 @@ func (h *StakingHandler) GetStakingsByUserID(c *gin.Context) {
 func (h *StakingHandler) ListStakings(c *gin.Context) {
 	params := models.StakingListParams{
 		Page:     1,
-		PageSize: 10,
+		PageSize: 30,
 	}
 
-	userIDStr := c.Query("user_id")
+	userIDStr := c.Query("user-id")
 	if userIDStr != "" {
 		userID, err := strconv.ParseInt(userIDStr, 10, 64)
 		if err == nil {
@@ -187,7 +170,7 @@ func (h *StakingHandler) ListStakings(c *gin.Context) {
 		params.PageSize = pageSize
 	}
 
-	stakings, totalCount, err := h.service.List(params)
+	stakings, totalCount, err := h.service.List(c, params)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.ListStakings: error listing stakings")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve stakings")
@@ -236,7 +219,7 @@ func (h *StakingHandler) WithdrawStaking(c *gin.Context) {
 		return
 	}
 
-	err = h.service.Withdraw(request)
+	err = h.service.Withdraw(c, request)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.WithdrawStaking: error withdrawing staking")
 
@@ -282,14 +265,14 @@ func (h *StakingHandler) GetStakingInterest(c *gin.Context) {
 		return
 	}
 
-	_, err = h.service.GetByID(id)
+	_, err = h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingInterest: staking not found")
 		newErrorResponse(c, http.StatusNotFound, "staking not found")
 		return
 	}
 
-	interest, err := h.service.GetEarnedInterest(id)
+	interest, err := h.service.GetEarnedInterest(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingInterest: error getting interest")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to calculate interest")
@@ -321,14 +304,14 @@ func (h *StakingHandler) GetStakingInterests(c *gin.Context) {
 		return
 	}
 
-	_, err = h.service.GetByID(id)
+	_, err = h.service.GetByID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingInterests: staking not found")
 		newErrorResponse(c, http.StatusNotFound, "staking not found")
 		return
 	}
 
-	interests, err := h.service.GetInterestsByStakingID(id)
+	interests, err := h.service.GetInterestsByStakingID(c, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingHandler.GetStakingInterests: error getting interests")
 		newErrorResponse(c, http.StatusInternalServerError, "failed to retrieve interest history")
@@ -383,7 +366,7 @@ func (h *StakingHandler) CalculateProjectedInterest(c *gin.Context) {
 		}
 	}
 
-	interest := h.service.CalculateProjectedInterest(request.Amount, request.Days, request.InterestRate)
+	interest := h.service.CalculateProjectedInterest(c, request.Amount, request.Days, request.InterestRate)
 
 	c.JSON(http.StatusOK, map[string]float64{
 		"interest": interest,

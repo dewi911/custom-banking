@@ -83,14 +83,15 @@ type LoansRepository interface {
 }
 
 type StakingRepository interface {
-	Create(staking *models.Staking) (int64, error)
-	GetByID(id int64) (*models.Staking, error)
-	GetByUserID(userID int64) ([]*models.Staking, error)
-	UpdateStatus(id int64, status string) error
-	List(params models.StakingListParams) ([]*models.Staking, int, error)
-	CreateInterest(interest *models.StakingInterest) (int64, error)
-	GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error)
-	CalculateEarnedInterest(stakingID int64) (float64, error)
+	Create(ctx context.Context, staking *models.Staking) (int64, error)
+	GetByID(ctx context.Context, id int64) (*models.Staking, error)
+	GetByUserID(ctx context.Context, userID int64) ([]*models.Staking, error)
+	UpdateStatus(ctx context.Context, id int64, status string) error
+	List(ctx context.Context, params models.StakingListParams) ([]*models.Staking, int, error)
+	CalculateDailyInterests(ctx context.Context) error
+	CreateInterest(ctx context.Context, interest *models.StakingInterest) (int64, error)
+	GetInterestsByStakingID(ctx context.Context, stakingID int64) ([]*models.StakingInterest, error)
+	CalculateEarnedInterest(ctx context.Context, stakingID int64) (float64, error)
 }
 
 type CardTransfersRepository interface {

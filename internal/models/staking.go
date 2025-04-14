@@ -29,7 +29,7 @@ type Staking struct {
 }
 
 type StakingRequest struct {
-	UserID       int64   `json:"user_id" binding:"required"`
+	UserID       int64   `json:"user_id,omitempty"`
 	Amount       float64 `json:"amount" binding:"required,gt=0"`
 	CurrencyID   int64   `json:"currency_id" binding:"required"`
 	DurationDays int     `json:"duration_days" binding:"required,min=1"` // days
@@ -49,9 +49,9 @@ type StakingListParams struct {
 }
 
 type StakingInterest struct {
-	ID          int64     `json:"id" db:"id"`
-	StakingID   int64     `json:"staking_id" db:"staking_id"`
-	Amount      float64   `json:"amount" db:"amount"`
-	Date        time.Time `json:"date" db:"date"`
-	Description string    `json:"description,omitempty" db:"description"`
+	ID             int64     `json:"id" db:"id"`
+	StakingID      int64     `json:"staking_id" db:"staking_id"`
+	Amount         float64   `json:"amount" db:"amount"`
+	DateCalculated time.Time `json:"date_calculated" db:"date_calculated"`
+	Description    string    `json:"description,omitempty" db:"description"`
 }

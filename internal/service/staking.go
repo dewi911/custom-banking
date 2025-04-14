@@ -22,7 +22,7 @@ func NewStakingService(stakingRepo StakingRepository, accountRepo AccountReposit
 	}
 }
 
-func (s *StakingService) Create(request models.StakingRequest) (*models.Staking, error) {
+func (s *StakingService) Create(ctx context.Context, request models.StakingRequest) (*models.Staking, error) {
 	if request.Amount <= 0 {
 		return nil, errors.New("staking amount must be positive")
 	}
@@ -43,7 +43,6 @@ func (s *StakingService) Create(request models.StakingRequest) (*models.Staking,
 		return nil, errors.New("invalid account ID")
 	}
 
-	ctx := context.Background()
 	accountAmount, err := s.accountRepo.GetAccountAmount(ctx, int(request.AccountID), int(request.UserID))
 	if err != nil {
 		return nil, fmt.Errorf("error getting account amount: %w", err)
@@ -66,27 +65,26 @@ func (s *StakingService) Create(request models.StakingRequest) (*models.Staking,
 	}
 
 	startDate := time.Now()
-	endDate := startDate.AddDate(0, 0, int(request.DurationDays))
+	tenDaysAgo := startDate.AddDate(0, 0, -10)
+	endDate := startDate.AddDate(0, 0, request.DurationDays)
 
 	staking := &models.Staking{
 		UserID:       request.UserID,
 		Amount:       request.Amount,
 		CurrencyID:   request.CurrencyID,
-		StartDate:    startDate,
+		StartDate:    tenDaysAgo,
 		EndDate:      endDate,
 		InterestRate: interestRate,
 		Status:       models.StakingStatusActive,
 	}
 
-	ctx = context.Background()
 	err = s.accountRepo.TransferAccount(ctx, int(request.AccountID), int(request.UserID), request.Amount, "STAKING_DEPOSIT")
 	if err != nil {
 		return nil, fmt.Errorf("failed to transfer amount from account: %w", err)
 	}
 
-	id, err := s.stakingRepo.Create(staking)
+	id, err := s.stakingRepo.Create(ctx, staking)
 	if err != nil {
-		ctx = context.Background()
 		s.accountRepo.DepositAccount(ctx, int(request.AccountID), request.Amount)
 		return nil, fmt.Errorf("failed to create staking: %w", err)
 	}
@@ -95,14 +93,14 @@ func (s *StakingService) Create(request models.StakingRequest) (*models.Staking,
 	return staking, nil
 }
 
-func (s *StakingService) GetByID(id int64) (*models.Staking, error) {
-	staking, err := s.stakingRepo.GetByID(id)
+func (s *StakingService) GetByID(ctx context.Context, id int64) (*models.Staking, error) {
+	staking, err := s.stakingRepo.GetByID(ctx, id)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.GetByID: error getting staking")
 		return nil, err
 	}
 
-	earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(id)
+	earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(ctx, id)
 	if err != nil {
 		logrus.WithError(err).Warn("StakingService.GetByID: error calculating earned interest")
 	}
@@ -120,15 +118,15 @@ func (s *StakingService) GetByID(id int64) (*models.Staking, error) {
 	return staking, nil
 }
 
-func (s *StakingService) GetByUserID(userID int64) ([]*models.Staking, error) {
-	stakings, err := s.stakingRepo.GetByUserID(userID)
+func (s *StakingService) GetByUserID(ctx context.Context, userID int64) ([]*models.Staking, error) {
+	stakings, err := s.stakingRepo.GetByUserID(ctx, userID)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.GetByUserID: error getting stakings")
 		return nil, err
 	}
 
 	for _, staking := range stakings {
-		earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(staking.ID)
+		earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(ctx, staking.ID)
 		if err != nil {
 			logrus.WithError(err).Warnf("StakingService.GetByUserID: error calculating earned interest for staking %d", staking.ID)
 			continue
@@ -148,22 +146,28 @@ func (s *StakingService) GetByUserID(userID int64) ([]*models.Staking, error) {
 	return stakings, nil
 }
 
-func (s *StakingService) List(params models.StakingListParams) ([]*models.Staking, int64, error) {
+func (s *StakingService) List(ctx context.Context, params models.StakingListParams) ([]*models.Staking, int64, error) {
 	if params.Page < 1 {
 		params.Page = 1
 	}
 	if params.PageSize < 1 || params.PageSize > 100 {
-		params.PageSize = 10
+		params.PageSize = 20
 	}
 
-	stakings, count, err := s.stakingRepo.List(params)
+	err := s.stakingRepo.CalculateDailyInterests(ctx)
+	if err != nil {
+		logrus.WithError(err).Error("StakingService.List: error listing stakings")
+		return nil, 0, fmt.Errorf("CalculateDailyInterests fail")
+	}
+
+	stakings, count, err := s.stakingRepo.List(ctx, params)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.List: error listing stakings")
 		return nil, 0, err
 	}
 
 	for _, staking := range stakings {
-		earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(staking.ID)
+		earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(ctx, staking.ID)
 		if err != nil {
 			logrus.WithError(err).Warnf("StakingService.List: error calculating earned interest for staking %d", staking.ID)
 			continue
@@ -183,8 +187,8 @@ func (s *StakingService) List(params models.StakingListParams) ([]*models.Stakin
 	return stakings, int64(count), nil
 }
 
-func (s *StakingService) Withdraw(request models.StakingWithdrawRequest) error {
-	staking, err := s.stakingRepo.GetByID(request.StakingID)
+func (s *StakingService) Withdraw(ctx context.Context, request models.StakingWithdrawRequest) error {
+	staking, err := s.stakingRepo.GetByID(ctx, request.StakingID)
 	if err != nil {
 		return fmt.Errorf("staking not found: %w", err)
 	}
@@ -193,7 +197,7 @@ func (s *StakingService) Withdraw(request models.StakingWithdrawRequest) error {
 		return fmt.Errorf("cannot withdraw from a staking with status: %s", staking.Status)
 	}
 
-	earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(request.StakingID)
+	earnedInterest, err := s.stakingRepo.CalculateEarnedInterest(ctx, request.StakingID)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.Withdraw: error calculating earned interest")
 		return fmt.Errorf("failed to calculate earned interest: %w", err)
@@ -206,13 +210,12 @@ func (s *StakingService) Withdraw(request models.StakingWithdrawRequest) error {
 		logrus.Infof("Early withdrawal penalty applied for staking %d", request.StakingID)
 	}
 
-	ctx := context.Background()
 	err = s.accountRepo.DepositAccount(ctx, int(request.AccountID), totalAmount)
 	if err != nil {
 		return fmt.Errorf("failed to deposit funds to account: %w", err)
 	}
 
-	err = s.stakingRepo.UpdateStatus(request.StakingID, models.StakingStatusWithdrawn)
+	err = s.stakingRepo.UpdateStatus(ctx, request.StakingID, models.StakingStatusWithdrawn)
 	if err != nil {
 		ctx := context.Background()
 		s.accountRepo.TransferAccount(ctx, int(request.AccountID), int(staking.UserID), totalAmount, "STAKING_REVERSAL")
@@ -220,13 +223,13 @@ func (s *StakingService) Withdraw(request models.StakingWithdrawRequest) error {
 	}
 
 	interest := &models.StakingInterest{
-		StakingID:   request.StakingID,
-		Amount:      earnedInterest,
-		Date:        time.Now(),
-		Description: "Final interest payment on withdrawal",
+		StakingID:      request.StakingID,
+		Amount:         earnedInterest,
+		DateCalculated: time.Now(),
+		Description:    "Final interest payment on withdrawal",
 	}
 
-	_, err = s.stakingRepo.CreateInterest(interest)
+	_, err = s.stakingRepo.CreateInterest(ctx, interest)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.Withdraw: error recording final interest")
 	}
@@ -234,8 +237,8 @@ func (s *StakingService) Withdraw(request models.StakingWithdrawRequest) error {
 	return nil
 }
 
-func (s *StakingService) GetEarnedInterest(stakingID int64) (float64, error) {
-	interest, err := s.stakingRepo.CalculateEarnedInterest(stakingID)
+func (s *StakingService) GetEarnedInterest(ctx context.Context, stakingID int64) (float64, error) {
+	interest, err := s.stakingRepo.CalculateEarnedInterest(ctx, stakingID)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.GetEarnedInterest: error calculating interest")
 		return 0, err
@@ -243,8 +246,8 @@ func (s *StakingService) GetEarnedInterest(stakingID int64) (float64, error) {
 	return interest, nil
 }
 
-func (s *StakingService) GetInterestsByStakingID(stakingID int64) ([]*models.StakingInterest, error) {
-	interests, err := s.stakingRepo.GetInterestsByStakingID(stakingID)
+func (s *StakingService) GetInterestsByStakingID(ctx context.Context, stakingID int64) ([]*models.StakingInterest, error) {
+	interests, err := s.stakingRepo.GetInterestsByStakingID(ctx, stakingID)
 	if err != nil {
 		logrus.WithError(err).Error("StakingService.GetInterestsByStakingID: error getting interests")
 		return nil, err
@@ -252,7 +255,7 @@ func (s *StakingService) GetInterestsByStakingID(stakingID int64) ([]*models.Sta
 	return interests, nil
 }
 
-func (s *StakingService) CalculateProjectedInterest(amount float64, days int64, interestRate float64) float64 {
+func (s *StakingService) CalculateProjectedInterest(ctx context.Context, amount float64, days int64, interestRate float64) float64 {
 	// I = P * r * t, where:
 	// P = Principal (amount)
 	// r = Rate (interestRate / 100)
