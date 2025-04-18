@@ -41,7 +41,7 @@ type Insurance struct {
 }
 
 type InsuranceRequest struct {
-	UserID           int64     `json:"user_id" binding:"required"`
+	UserID           int64     `json:"user_id,omitempty"`
 	Type             string    `json:"type" binding:"required"`
 	InsuredItem      string    `json:"insured_item" binding:"required"`
 	CoverageAmount   float64   `json:"coverage_amount" binding:"required,gt=0"`
@@ -72,13 +72,13 @@ type InsuranceClaim struct {
 	Amount         float64   `json:"amount" db:"amount"`
 	FilingDate     time.Time `json:"filing_date" db:"filing_date"`
 	ResolutionDate time.Time `json:"resolution_date,omitempty" db:"resolution_date"`
-	DocumentLinks  string    `json:"document_links,omitempty" db:"document_links"`
+	DocumentLinks  []string  `json:"document_links,omitempty" db:"document_links"`
 }
 
 type InsuranceClaimRequest struct {
 	InsuranceID   int64     `json:"insurance_id" binding:"required"`
 	Description   string    `json:"description" binding:"required"`
 	Amount        float64   `json:"amount" binding:"required,gt=0"`
-	ClaimDate     time.Time `json:"claim_date" binding:"required"`
-	DocumentLinks string    `json:"document_links,omitempty"`
+	ClaimDate     time.Time `json:"claim_date,omitempty"`
+	DocumentLinks []string  `json:"document_links,omitempty"`
 }

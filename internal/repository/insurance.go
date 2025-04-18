@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 	"math/rand"
 	"time"
@@ -19,7 +20,63 @@ func NewInsurance(db *sqlx.DB) *InsuranceRepo {
 	return &InsuranceRepo{db: db}
 }
 
+func (r *InsuranceRepo) ensureInsuranceTablesExist() error {
+	_, err := r.db.Exec(`
+		CREATE TABLE IF NOT EXISTS insurance_policies (
+		  id serial PRIMARY KEY,
+		  user_id integer,
+		  type varchar(50),
+		  policy_type varchar(50),
+		  insured_item varchar(255),
+		  coverage_amount numeric,
+		  premium_amount numeric,
+		  premium numeric,
+		  start_date timestamp,
+		  end_date timestamp,
+		  status varchar(20),
+		  policy_number varchar(50),
+		  description text,
+		  currency_id integer,
+		  payment_account_id integer
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_insurance_user_id ON insurance_policies (user_id);
+	`)
+
+	if err != nil {
+		logrus.WithError(err).Error("InsuranceRepo.ensureInsuranceTablesExist: error creating insurance_policies table")
+		return err
+	}
+
+	_, err = r.db.Exec(`
+		CREATE TABLE IF NOT EXISTS insurance_claims (
+		  id serial PRIMARY KEY,
+		  insurance_id integer REFERENCES insurance_policies(id),
+		  claim_date timestamp,
+		  description text,
+		  status varchar(20),
+		  amount numeric,
+		  filing_date timestamp DEFAULT CURRENT_TIMESTAMP,
+		  resolution_date timestamp,
+		  document_links text[]
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_insurance_claims_insurance_id ON insurance_claims (insurance_id);
+	`)
+
+	if err != nil {
+		logrus.WithError(err).Error("InsuranceRepo.ensureInsuranceTablesExist: error creating insurance_claims table")
+		return err
+	}
+
+	return nil
+}
+
 func (r *InsuranceRepo) Create(insurance *models.Insurance) (int64, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return 0, err
+	}
+
 	query := `
 		INSERT INTO insurance_policies 
 		(user_id, type, insured_item, coverage_amount, premium, start_date, end_date, 
@@ -54,8 +111,15 @@ func (r *InsuranceRepo) Create(insurance *models.Insurance) (int64, error) {
 }
 
 func (r *InsuranceRepo) GetByID(id int64) (*models.Insurance, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return nil, err
+	}
+
 	query := `
-		SELECT i.*, c.code as currency_code
+		SELECT 
+			i.id, i.user_id, i.type, i.insured_item, i.coverage_amount, 
+			i.premium, i.start_date, i.end_date, i.status, i.policy_number, 
+			i.description, i.currency_id, i.payment_account_id, c.code as currency_code
 		FROM insurance_policies i
 		JOIN currency c ON i.currency_id = c.id
 		WHERE i.id = $1
@@ -173,6 +237,10 @@ func (r *InsuranceRepo) UpdateStatus(id int64, status string) error {
 }
 
 func (r *InsuranceRepo) List(params models.InsuranceListParams) ([]*models.Insurance, int64, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return nil, 0, err
+	}
+
 	whereClause := "WHERE 1=1"
 	args := []interface{}{}
 	argCount := 1
@@ -202,10 +270,10 @@ func (r *InsuranceRepo) List(params models.InsuranceListParams) ([]*models.Insur
 	}
 
 	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM insurance_policies i
-		%s
-	`, whereClause)
+       SELECT COUNT(*)
+       FROM insurance_policies i
+       %s
+    `, whereClause)
 
 	var totalCount int64
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -217,13 +285,27 @@ func (r *InsuranceRepo) List(params models.InsuranceListParams) ([]*models.Insur
 	offset := (params.Page - 1) * params.PageSize
 
 	query := fmt.Sprintf(`
-		SELECT i.*, c.code as currency_code
-		FROM insurance_policies i
-		JOIN currency c ON i.currency_id = c.id
-		%s
-		ORDER BY i.start_date DESC
-		LIMIT $%d OFFSET $%d
-	`, whereClause, argCount, argCount+1)
+       SELECT 
+          i.id,
+          i.user_id,
+          i.type,
+          i.insured_item,
+          i.coverage_amount,
+          i.premium,
+          i.start_date,
+          i.end_date,
+          i.status,
+          i.policy_number,
+          i.description,
+          i.currency_id,
+          i.payment_account_id,
+          c.code as currency_code
+       FROM insurance_policies i
+       JOIN currency c ON i.currency_id = c.id
+       %s
+       ORDER BY i.start_date DESC
+       LIMIT $%d OFFSET $%d
+    `, whereClause, argCount, argCount+1)
 
 	args = append(args, params.PageSize, offset)
 
@@ -295,6 +377,10 @@ func (r *InsuranceRepo) GeneratePolicyNumber() (string, error) {
 }
 
 func (r *InsuranceRepo) CreateClaim(claim *models.InsuranceClaim) (int64, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return 0, err
+	}
+
 	query := `
 		INSERT INTO insurance_claims 
 		(insurance_id, claim_date, description, status, amount, filing_date, document_links) 
@@ -311,7 +397,7 @@ func (r *InsuranceRepo) CreateClaim(claim *models.InsuranceClaim) (int64, error)
 		claim.Status,
 		claim.Amount,
 		claim.FilingDate,
-		claim.DocumentLinks,
+		pq.Array(claim.DocumentLinks),
 	).Scan(&id)
 
 	if err != nil {
@@ -323,6 +409,10 @@ func (r *InsuranceRepo) CreateClaim(claim *models.InsuranceClaim) (int64, error)
 }
 
 func (r *InsuranceRepo) GetClaimByID(id int64) (*models.InsuranceClaim, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT id, insurance_id, claim_date, description, status, amount, 
 		       filing_date, resolution_date, document_links
@@ -331,6 +421,8 @@ func (r *InsuranceRepo) GetClaimByID(id int64) (*models.InsuranceClaim, error) {
 	`
 
 	claim := &models.InsuranceClaim{}
+	var resolutionDate sql.NullTime
+
 	err := r.db.QueryRow(query, id).Scan(
 		&claim.ID,
 		&claim.InsuranceID,
@@ -339,8 +431,8 @@ func (r *InsuranceRepo) GetClaimByID(id int64) (*models.InsuranceClaim, error) {
 		&claim.Status,
 		&claim.Amount,
 		&claim.FilingDate,
-		&claim.ResolutionDate,
-		&claim.DocumentLinks,
+		&resolutionDate,
+		pq.Array(&claim.DocumentLinks),
 	)
 
 	if err != nil {
@@ -349,6 +441,10 @@ func (r *InsuranceRepo) GetClaimByID(id int64) (*models.InsuranceClaim, error) {
 		}
 		logrus.WithError(err).Errorf("InsuranceRepo.GetClaimByID: error getting claim with id %d", id)
 		return nil, err
+	}
+
+	if resolutionDate.Valid {
+		claim.ResolutionDate = resolutionDate.Time
 	}
 
 	return claim, nil
@@ -373,6 +469,8 @@ func (r *InsuranceRepo) GetClaimsByInsuranceID(insuranceID int64) ([]*models.Ins
 	var claims []*models.InsuranceClaim
 	for rows.Next() {
 		claim := &models.InsuranceClaim{}
+		var resolutionDate sql.NullTime
+
 		err := rows.Scan(
 			&claim.ID,
 			&claim.InsuranceID,
@@ -381,13 +479,18 @@ func (r *InsuranceRepo) GetClaimsByInsuranceID(insuranceID int64) ([]*models.Ins
 			&claim.Status,
 			&claim.Amount,
 			&claim.FilingDate,
-			&claim.ResolutionDate,
-			&claim.DocumentLinks,
+			&resolutionDate,
+			pq.Array(&claim.DocumentLinks),
 		)
 		if err != nil {
 			logrus.WithError(err).Error("InsuranceRepo.GetClaimsByInsuranceID: error scanning claim row")
 			return nil, err
 		}
+
+		if resolutionDate.Valid {
+			claim.ResolutionDate = resolutionDate.Time
+		}
+
 		claims = append(claims, claim)
 	}
 
@@ -426,6 +529,10 @@ func (r *InsuranceRepo) UpdateClaimStatus(id int64, status string, resolutionDat
 }
 
 func (r *InsuranceRepo) ListClaims(insuranceID int64, page, pageSize int64) ([]*models.InsuranceClaim, int64, error) {
+	if err := r.ensureInsuranceTablesExist(); err != nil {
+		return nil, 0, err
+	}
+
 	whereClause := "WHERE 1=1"
 	args := []interface{}{}
 	argCount := 1
@@ -472,6 +579,8 @@ func (r *InsuranceRepo) ListClaims(insuranceID int64, page, pageSize int64) ([]*
 	var claims []*models.InsuranceClaim
 	for rows.Next() {
 		claim := &models.InsuranceClaim{}
+		var resolutionDate sql.NullTime
+
 		err := rows.Scan(
 			&claim.ID,
 			&claim.InsuranceID,
@@ -480,13 +589,18 @@ func (r *InsuranceRepo) ListClaims(insuranceID int64, page, pageSize int64) ([]*
 			&claim.Status,
 			&claim.Amount,
 			&claim.FilingDate,
-			&claim.ResolutionDate,
-			&claim.DocumentLinks,
+			&resolutionDate,
+			pq.Array(&claim.DocumentLinks),
 		)
 		if err != nil {
 			logrus.WithError(err).Error("InsuranceRepo.ListClaims: error scanning claim row")
 			return nil, 0, err
 		}
+
+		if resolutionDate.Valid {
+			claim.ResolutionDate = resolutionDate.Time
+		}
+
 		claims = append(claims, claim)
 	}
 

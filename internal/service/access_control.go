@@ -22,6 +22,8 @@ func NewAccessControl(roleRepository RoleRepository) *AccessControl {
 	ac.AddPermission("user", "/event/", []string{"GET"})
 	ac.AddPermission("user", "/loans/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
 	ac.AddPermission("user", "/staking/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
+	ac.AddPermission("user", "/cards/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
+	ac.AddPermission("user", "/insurance/*", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
 	ac.AddPermission("user", "/api/auth/*", []string{"GET", "POST"})
 	ac.AddPermission("user", "/api/accounts/*", []string{"GET"})
 	ac.AddPermission("user", "/api/transactions/*", []string{"GET", "POST"})

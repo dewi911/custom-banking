@@ -45,7 +45,7 @@ type TransactionRepository interface {
 }
 
 type CardRepository interface {
-	CreateCard(ctx context.Context, accountID int, cardNumber string, cardholderName string, cvvCode string) (models.Card, error)
+	CreateCard(ctx context.Context, accountID, cashback_percentage int, cardNumber, cardholderName, cvvCode, cardType string) (models.Card, error)
 	GetCardListUser(ctx context.Context, userID int) ([]models.Card, error)
 	GetCardListByAccount(ctx context.Context, userID, accountID int) ([]models.Card, error)
 	GetCard(ctx context.Context, id, accountID int) (models.Card, error)

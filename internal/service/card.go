@@ -24,7 +24,7 @@ func NewCard(cardRepo CardRepository, userRepo UsersRepository, accountRepo Acco
 	}
 }
 
-func (s Card) CreateCard(ctx context.Context, accountID, userID int) (models.Card, error) {
+func (s Card) CreateCard(ctx context.Context, accountID, userID, cashbackPercentage int, cardType string) (models.Card, error) {
 	checkUserID, err := s.accountRepo.GetUserIDByAccountID(ctx, accountID)
 	if err != nil {
 		return models.Card{}, errors.Wrap(err, "getting userID by accountID error")
@@ -42,7 +42,7 @@ func (s Card) CreateCard(ctx context.Context, accountID, userID int) (models.Car
 		return models.Card{}, errors.Wrap(err, "getting user name and surname error")
 	}
 
-	card, err := s.cardRepo.CreateCard(ctx, accountID, cardNumber, cardholderName, cvvCode)
+	card, err := s.cardRepo.CreateCard(ctx, accountID, cashbackPercentage, cardNumber, cardholderName, cvvCode, cardType)
 	if err != nil {
 		return models.Card{}, errors.Wrap(err, "card creation error")
 	}

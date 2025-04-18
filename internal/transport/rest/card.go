@@ -43,7 +43,13 @@ func (t *Card) createCard(ctx *gin.Context) {
 		return
 	}
 
-	domainCard, err := t.cardService.CreateCard(ctx, accountID, userID)
+	var req models.CreateCardRequestBody
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, NewBadRequestError("request body validation error", err))
+		return
+	}
+
+	domainCard, err := t.cardService.CreateCard(ctx, accountID, userID, req.CashbackPercentage, req.CardType)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, NewInternalServerError("card creation error", err))
 		return

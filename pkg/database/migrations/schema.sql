@@ -183,12 +183,31 @@ CREATE TABLE IF NOT EXISTS "loan_payments" (
 CREATE TABLE IF NOT EXISTS "insurance_policies" (
   "id" serial PRIMARY KEY,
   "user_id" integer,
+  "type" varchar(50),
   "policy_type" varchar(50),
+  "insured_item" varchar(255),
+  "coverage_amount" numeric,
+  "premium_amount" numeric,
+  "premium" numeric,
   "start_date" timestamp,
   "end_date" timestamp,
-  "premium_amount" numeric,
-  "coverage_amount" numeric,
-  "status" varchar(20)
+  "status" varchar(20),
+  "policy_number" varchar(50),
+  "description" text,
+  "currency_id" integer,
+  "payment_account_id" integer
+);
+
+CREATE TABLE IF NOT EXISTS "insurance_claims" (
+  "id" serial PRIMARY KEY,
+  "insurance_id" integer REFERENCES insurance_policies(id),
+  "claim_date" timestamp,
+  "description" text,
+  "status" varchar(20),
+  "amount" numeric,
+  "filing_date" timestamp DEFAULT CURRENT_TIMESTAMP,
+  "resolution_date" timestamp,
+  "document_links" text
 );
 
 CREATE TABLE IF NOT EXISTS "bank_balance" (
@@ -282,6 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_cashback_transaction_id ON "cashback" ("transacti
 CREATE INDEX IF NOT EXISTS idx_loans_user_id ON "loans" ("user_id");
 CREATE INDEX IF NOT EXISTS idx_loans_currency_id ON "loans" ("currency_id");
 CREATE INDEX IF NOT EXISTS idx_insurance_user_id ON "insurance_policies" ("user_id");
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_insurance_id ON "insurance_claims" ("insurance_id");
 CREATE INDEX IF NOT EXISTS idx_user_accounts_user_id ON "user_accounts" ("user_id");
 CREATE INDEX IF NOT EXISTS idx_user_accounts_account_id ON "user_accounts" ("account_id");
 CREATE INDEX IF NOT EXISTS idx_account_products_account_id ON "account_products" ("account_id");

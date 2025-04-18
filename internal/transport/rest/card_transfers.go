@@ -20,7 +20,7 @@ func NewCardTransfersHandler(service CardTransfersService) *CardTransfersHandler
 }
 
 func (h *CardTransfersHandler) Register(api *gin.Engine, middlewares ...gin.HandlerFunc) {
-	cards := api.Group("/cards")
+	cards := api.Group("/cards").Use(middlewares...)
 	{
 		cards.POST("/transfer", h.TransferBetweenCards)
 		cards.GET("/info/:number", h.GetCardByNumber)

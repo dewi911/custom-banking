@@ -11,8 +11,13 @@ type Card struct {
 	CardholderName     string    `json:"cardholder_name" db:"cardholder_name"`
 	ExpirationDate     time.Time `json:"expiration_date" db:"expiration_date"`
 	CvvCode            string    `json:"cvv_code" db:"cvv_code"`
-	CardType           *string   `db:"card_type" db:"card_type"`
-	CashbackPercentage *float64  `db:"cashback_percentage" db:"cashback_percentage"`
+	CardType           *string   `json:"card_type" db:"card_type"`
+	CashbackPercentage *float64  `json:"cashback_percentage" db:"cashback_percentage"`
 }
 
 type ListCards []Card
+
+type CreateCardRequestBody struct {
+	CardType           string `json:"card_type"`
+	CashbackPercentage int    `json:"cashback_percentage"`
+}

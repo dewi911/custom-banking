@@ -27,7 +27,7 @@ type UserService interface {
 }
 
 type CardService interface {
-	CreateCard(ctx context.Context, accountID, UserID int) (models.Card, error)
+	CreateCard(ctx context.Context, accountID, UserID, cashbackPercentage int, cardType string) (models.Card, error)
 	GetCardListUser(ctx context.Context, userID int) ([]models.Card, error)
 	GetCardListByAccount(ctx context.Context, userID, accountID int) ([]models.Card, error)
 	GetCard(ctx context.Context, cardID, accountID, userID int) (models.Card, error)

@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type InsuranceHandler struct {
@@ -17,8 +18,8 @@ func NewInsuranceHandler(service InsuranceService) *InsuranceHandler {
 	return &InsuranceHandler{service: service}
 }
 
-func (h *InsuranceHandler) InitRoutes(api *gin.RouterGroup) {
-	insurance := api.Group("/insurance")
+func (h *InsuranceHandler) InitRoutes(api *gin.Engine, middlewares ...gin.HandlerFunc) {
+	insurance := api.Group("/insurance").Use(middlewares...)
 	{
 		insurance.POST("", h.create)
 		insurance.GET("", h.list)
@@ -338,8 +339,12 @@ func (h *InsuranceHandler) createClaim(c *gin.Context) {
 		return
 	}
 
-	if request.Description == "" || request.Amount <= 0 || request.ClaimDate.IsZero() {
-		newErrorResponse(c, http.StatusBadRequest, "description, amount, and claim date are required")
+	if request.ClaimDate.IsZero() {
+		request.ClaimDate = time.Now()
+	}
+
+	if request.Description == "" || request.Amount <= 0 {
+		newErrorResponse(c, http.StatusBadRequest, "description and amount are required")
 		return
 	}
 
